@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BinProof</title>
+<style>
+  :root { --bg:#f6f7f4; --card:#fff; --ink:#15211b; --muted:#5b6b62; --line:#dfe5df; --green:#1f7a4d;
+          --green-bg:#e6f4ec; --red:#b42318; --red-bg:#fdecea; --amber:#9a6700; --amber-bg:#fff4d6; --blue:#1d4ed8; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0f1512; --card:#17201b; --ink:#e7efe9; --muted:#9db0a5;
+          --line:#2a362f; --green:#5fd39a; --green-bg:#173325; --red:#ff8a80; --red-bg:#3a1a17; --amber:#f5c451;
+          --amber-bg:#3a2f12; --blue:#8fb2ff; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { padding:20px 16px 8px; max-width:1100px; margin:auto; }
+  h1 { margin:0; font-size:26px; letter-spacing:-.02em; } h1 span { color:var(--green); }
+  header p { margin:4px 0 0; color:var(--muted); }
+  nav { max-width:1100px; margin:12px auto 0; padding:0 16px; display:flex; gap:6px; flex-wrap:wrap; }
+  nav button { border:1px solid var(--line); background:var(--card); color:var(--ink); padding:8px 14px; border-radius:999px; cursor:pointer; font-weight:600; }
+  nav button.on { background:var(--ink); color:var(--bg); }
+  main { max-width:1100px; margin:auto; padding:16px; }
+  section { display:none; } section.on { display:block; }
+  .grid { display:grid; gap:16px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; min-width:0; }
+  .card h2 { margin:0 0 10px; font-size:16px; }
+  video, img.shot { width:100%; border-radius:10px; background:#000; aspect-ratio:4/3; object-fit:cover; }
+  label { display:block; font-size:13px; color:var(--muted); margin:10px 0 4px; }
+  input, select { width:100%; padding:9px 10px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--ink); font:inherit; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+  .btn { border:0; background:var(--green); color:#fff; padding:10px 14px; border-radius:10px; font-weight:700; cursor:pointer; font:inherit; font-weight:700; }
+  .btn.alt { background:transparent; color:var(--ink); border:1px solid var(--line); }
+  .btn.small { padding:5px 9px; font-size:13px; }
+  .btn:disabled { opacity:.5; cursor:wait; }
+  .verdict { border-radius:12px; padding:14px; margin-top:12px; }
+  .ok { background:var(--green-bg); color:var(--green); } .bad { background:var(--red-bg); color:var(--red); }
+  .warn { background:var(--amber-bg); color:var(--amber); }
+  .verdict b { font-size:18px; display:block; } .verdict small { color:var(--ink); opacity:.85; }
+  .mono { font-family: ui-monospace, Consolas, monospace; font-size:12px; word-break:break-all; color:var(--muted); }
+  .tablewrap { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:14px; } th, td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--muted); font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
+  .pill { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; font-weight:700; white-space:nowrap; }
+  .stat { font-size:30px; font-weight:800; letter-spacing:-.02em; } .muted { color:var(--muted); }
+  textarea { width:100%; min-height:150px; font:12px ui-monospace, Consolas, monospace; padding:10px; border-radius:8px; border:1px solid var(--line); background:var(--bg); color:var(--ink); }
+  a { color:var(--blue); }
+  .tag { font-size:11px; color:var(--muted); border:1px dashed var(--line); border-radius:6px; padding:1px 6px; white-space:nowrap; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Bin<span>Proof</span></h1>
+  <p>Recycling contamination, recorded at the bin, checked by the facility, claimable once.</p>
+</header>
+<nav>
+  <button data-tab="bin" class="on">1 · The bin</button>
+  <button data-tab="building">2 · Building &amp; pickups</button>
+  <button data-tab="facility">3 · Facility</button>
+  <button data-tab="verify">4 · Verify a receipt</button>
+</nav>
+<main>
+  <section id="bin" class="on">
+    <div class="grid">
+      <div class="card">
+        <h2>Camera inside the blue bin</h2>
+        <video id="cam" autoplay playsinline muted></video>
+        <img id="still" class="shot" hidden alt="captured item">
+        <label for="unit">Unit (from the resident's fob or QR card)</label>
+        <input id="unit" value="1203">
+        <div class="row">
+          <button class="btn" id="snap">Put item in bin</button>
+          <label class="btn alt" style="margin:0">Use a photo<input type="file" id="file" accept="image/*" hidden></label>
+        </div>
+        <p class="muted" style="font-size:13px" id="privacy">Only the photo's SHA-256 is recorded.</p>
+      </div>
+      <div class="card">
+        <h2>What the bin decided</h2>
+        <div id="verdict" class="muted">Hold an item up to the camera and press <b>Put item in bin</b>.</div>
+        <h2 style="margin-top:18px">Recent items <span class="tag" id="openCount"></span></h2>
+        <div class="tablewrap"><table><thead><tr><th>Unit</th><th>Item</th><th>Verdict</th><th></th></tr></thead><tbody id="events"></tbody></table></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="building">
+    <div class="grid">
+      <div class="card">
+        <h2>This building's blue bin</h2>
+        <div class="stat" id="openPct">–</div>
+        <div class="muted">contamination in items waiting for pickup (<span id="openN">0</span> items)</div>
+        <p class="muted" style="font-size:13px">Toronto's audited Blue Box contamination in 2025 was <b>35.4%</b>. In a condo tower, hundreds of units share one bin, so nobody can see who contaminated it.</p>
+        <div class="row"><button class="btn" id="pickup">Pickup: commit batch on chain</button></div>
+        <div id="pickupMsg" class="mono" style="margin-top:8px"></div>
+      </div>
+      <div class="card" style="grid-column: 1 / -1">
+        <h2>Pickups</h2>
+        <div class="tablewrap"><table><thead><tr><th>#</th><th>Items</th><th>Bin AI says</th><th>Facility measured</th><th>Status</th><th>Claim</th></tr></thead><tbody id="batches"></tbody></table></div>
+        <p class="mono" id="contract"></p>
+      </div>
+    </div>
+  </section>
+
+  <section id="facility">
+    <div class="grid">
+      <div class="card">
+        <h2>Recycling facility audit</h2>
+        <p class="muted">The facility samples the load and signs its own measurement with its own key. The contract compares it with what the bin's AI recorded: within 10 points, the pickup is verified; otherwise it is flagged and nothing can be claimed.</p>
+        <label for="batchSel">Pickup</label>
+        <select id="batchSel"></select>
+        <label for="pct">Measured contamination (%)</label>
+        <input id="pct" type="number" min="0" max="100" step="0.1" value="36">
+        <div class="row"><button class="btn" id="report">Sign measurement</button></div>
+        <div id="facilityMsg" style="margin-top:12px"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="verify">
+    <div class="grid">
+      <div class="card">
+        <h2>Check that an item is in a committed pickup</h2>
+        <p class="muted">A resident's receipt holds their event and a Merkle proof. The check runs against the contract: no account, no trust in us, and nobody else's items are revealed.</p>
+        <div class="row"><button class="btn alt" id="lastReceipt">Load my latest receipt</button></div>
+        <textarea id="receipt" placeholder='{"batchId": "...", "values": [...], "proof": [...]}'></textarea>
+        <div class="row"><button class="btn" id="check">Verify on chain</button><button class="btn alt" id="tamper">Tamper with it</button></div>
+        <div id="verifyMsg" style="margin-top:12px"></div>
+      </div>
+    </div>
+  </section>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const api = async (url, body) => {
+  const r = await fetch(url, body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const j = await r.json(); if (!r.ok) throw new Error(j.error || r.statusText); return j;
+};
+const short = (h) => h ? h.slice(0, 10) + "…" + h.slice(-6) : "";
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+let state = null, lastEventId = null;
+
+document.querySelectorAll("nav button").forEach((b) => b.onclick = () => {
+  document.querySelectorAll("nav button").forEach((x) => x.classList.toggle("on", x === b));
+  document.querySelectorAll("section").forEach((s) => s.classList.toggle("on", s.id === b.dataset.tab));
+  refresh();
+});
+
+function txLink(hash) {
+  if (!hash) return "";
+  const d = state?.deployment;
+  return d && d.chainId === 84532 ? `<a href="https://sepolia.basescan.org/tx/${hash}" target="_blank" rel="noopener">${short(hash)}</a>` : `<span class="mono">${short(hash)}</span>`;
+}
+
+async function refresh() {
+  state = await api("/api/state");
+  $("privacy").textContent = state.onDevice
+    ? `The photo is judged by ${state.model} running on this device and stays here. Only its SHA-256 is recorded.`
+    : `Hosted demo: the photo is sent to ${state.model} for a verdict and then discarded. Only its SHA-256 is recorded. In a building, the model runs inside the bin and the photo never leaves it.`;
+  const open = state.events.filter((e) => !e.batchId);
+  const counted = open.filter((e) => !e.needsReview);
+  const dirty = counted.filter((e) => e.contaminated).length;
+  $("openN").textContent = counted.length;
+  $("openPct").textContent = counted.length ? (100 * dirty / counted.length).toFixed(1) + "%" : "–";
+  $("openCount").textContent = `${open.length} waiting for pickup`;
+  $("events").innerHTML = state.events.slice(0, 14).map((e) => `<tr>
+    <td>${esc(e.unit)}${e.seeded ? ' <span class="tag">seeded</span>' : ""}</td><td>${esc(e.item)}</td>
+    <td>${e.needsReview ? '<span class="pill warn">needs a person</span>' : e.contaminated ? '<span class="pill bad">contamination</span>' : '<span class="pill ok">belongs</span>'}${e.humanReviewed ? ' <span class="tag">checked by a person</span>' : ""}</td>
+    <td>${e.needsReview ? `<button class="btn alt small" onclick="review('${e.eventId}', false)">Belongs</button> <button class="btn alt small" onclick="review('${e.eventId}', true)">Doesn't</button>` : e.batchId ? '<span class="tag">picked up</span>' : ""}</td></tr>`).join("");
+  $("batches").innerHTML = state.batches.slice().reverse().map((b) => `<tr>
+    <td>${b.number}</td><td>${b.items}${b.seeded ? ` <span class="tag">${b.seeded} seeded</span>` : ""}</td>
+    <td>${b.binPct.toFixed(1)}%<div class="mono">root ${short(b.root)}<br>commit ${txLink(b.tx.commit)}</div></td>
+    <td>${b.facilityPct === null ? "–" : b.facilityPct.toFixed(1) + "%"}${b.tx.measurement ? `<div class="mono">${txLink(b.tx.measurement)}</div>` : ""}</td>
+    <td><span class="pill ${b.status === "Verified" ? "ok" : b.status === "Flagged" ? "bad" : "warn"}">${b.status}</span></td>
+    <td>${b.status === "Verified" ? `<button class="btn alt small" onclick="claim('${b.batchId}')">${b.claimed ? "Claim again" : "Issue claim"}</button>` : ""}
+        <div class="mono" id="claim-${b.batchId}">${b.tx.claim ? "claimed " + txLink(b.tx.claim) : ""}</div></td></tr>`).join("") || '<tr><td colspan="6" class="muted">No pickups yet.</td></tr>';
+  const d = state.deployment;
+  $("contract").innerHTML = d ? `Contract ${d.address} on chain ${d.chainId} · building signer ${short(d.building)} · facility signer ${short(d.facility)} · tolerance ${d.toleranceBps / 100} points` : "Contract not deployed.";
+  $("batchSel").innerHTML = state.batches.filter((b) => b.status === "Committed").map((b) => `<option value="${b.batchId}">Pickup #${b.number}: bin says ${b.binPct.toFixed(1)}%</option>`).join("") || "<option value=''>No pickups waiting for a measurement</option>";
+}
+
+window.review = async (id, contaminated) => { await api(`/api/review/${id}`, { contaminated }); refresh(); };
+window.claim = async (id) => {
+  const el = $(`claim-${id}`);
+  try { const r = await api(`/api/claim/${id}`, {}); await refresh(); $(`claim-${id}`).innerHTML = `claimed ${txLink(r.tx)}`; }
+  catch (e) { el.innerHTML = `<span class="pill bad">Refused by the contract: ${esc(e.message)}</span>`; }
+};
+
+// Camera
+navigator.mediaDevices?.getUserMedia({ video: { facingMode: "environment" } })
+  .then((s) => $("cam").srcObject = s)
+  .catch(() => { $("cam").replaceWith(Object.assign(document.createElement("p"), { className: "muted", textContent: "No camera available: use a photo instead." })); });
+
+// Photos are shrunk to 1024px before they leave the page: enough to judge an item, smaller to send.
+function toJpeg(source, w, h) {
+  const scale = Math.min(1, 1024 / Math.max(w, h));
+  const c = document.createElement("canvas");
+  c.width = Math.round(w * scale); c.height = Math.round(h * scale);
+  c.getContext("2d").drawImage(source, 0, 0, c.width, c.height);
+  return c.toDataURL("image/jpeg", 0.85);
+}
+function frame() {
+  const v = $("cam"); if (!v || !v.videoWidth) return null;
+  return toJpeg(v, v.videoWidth, v.videoHeight);
+}
+
+async function dispose(image) {
+  if (!image) { $("verdict").textContent = "No camera frame: use a photo instead."; return; }
+  $("still").src = image; $("still").hidden = false;
+  $("snap").disabled = true;
+  $("verdict").innerHTML = '<div class="verdict warn"><b>Looking…</b><small>The on-device model is judging the item.</small></div>';
+  try {
+    const { event, verdict } = await api("/api/dispose", { unit: $("unit").value, image });
+    lastEventId = event.eventId;
+    const cls = verdict.needsReview ? "warn" : verdict.contaminated ? "bad" : "ok";
+    const head = verdict.needsReview ? "Not sure: a person will check" : verdict.contaminated ? "Doesn't belong in the blue bin" : "Belongs in the blue bin";
+    $("verdict").innerHTML = `<div class="verdict ${cls}"><b>${head}</b><small>${esc(verdict.item)} · ${esc(verdict.reason)}</small>
+      <div class="mono" style="margin-top:8px">confidence ${(verdict.confidence * 100).toFixed(0)}% · model ${esc(verdict.model)} · ${(verdict.ms / 1000).toFixed(1)}s<br>photo sha256 ${short(event.imageSha256)} ${verdict.onDevice ? "(photo kept on this device)" : "(photo discarded after the verdict)"}</div></div>`;
+  } catch (e) { $("verdict").innerHTML = `<div class="verdict bad"><b>Error</b><small>${esc(e.message)}</small></div>`; }
+  $("snap").disabled = false; refresh();
+}
+$("snap").onclick = () => dispose(frame());
+$("file").onchange = (ev) => {
+  const f = ev.target.files[0]; if (!f) return;
+  const img = new Image();
+  img.onload = () => { dispose(toJpeg(img, img.naturalWidth, img.naturalHeight)); URL.revokeObjectURL(img.src); };
+  img.src = URL.createObjectURL(f);
+};
+
+$("pickup").onclick = async () => {
+  $("pickup").disabled = true; $("pickupMsg").textContent = "Committing…";
+  try { const b = await api("/api/pickup", {}); await refresh(); $("pickupMsg").innerHTML = `Pickup #${b.number}: ${b.items} items, root ${short(b.root)}, tx ${txLink(b.tx.commit)}`; }
+  catch (e) { $("pickupMsg").textContent = e.message; }
+  $("pickup").disabled = false;
+};
+
+$("report").onclick = async () => {
+  const id = $("batchSel").value;
+  if (!id) return;
+  try {
+    const r = await api(`/api/facility/${id}`, { contaminationPct: Number($("pct").value) });
+    $("facilityMsg").innerHTML = `<div class="verdict ${r.status === "Verified" ? "ok" : "bad"}"><b>${r.status === "Verified" ? "Verified: the bin and the facility agree" : "Flagged: the bin and the facility disagree"}</b><small>${r.status === "Verified" ? "One diversion claim can now be issued for this pickup." : "No claim can be issued. Someone has to look at this load."}</small><div class="mono">tx ${txLink(r.tx)}</div></div>`;
+  } catch (e) { $("facilityMsg").innerHTML = `<div class="verdict bad"><b>Refused</b><small>${esc(e.message)}</small></div>`; }
+  refresh();
+};
+
+$("lastReceipt").onclick = async () => {
+  const mine = lastEventId || state.events.find((e) => e.batchId)?.eventId;
+  if (!mine) { $("verifyMsg").textContent = "No item yet."; return; }
+  const r = await api(`/api/receipt/${mine}`);
+  $("receipt").value = r.pending ? "This item is waiting for pickup. Its receipt exists once the pickup is committed." : JSON.stringify({ batchId: r.batchId, fields: r.leafFields, values: r.values, proof: r.proof }, null, 2);
+  $("verifyMsg").innerHTML = "";
+};
+$("check").onclick = async () => {
+  try {
+    const r = JSON.parse($("receipt").value);
+    const out = await api("/api/verify", { batchId: r.batchId, values: r.values, proof: r.proof });
+    $("verifyMsg").innerHTML = out.ok ? `<div class="verdict ok"><b>Found in the committed pickup</b><small>The contract confirmed this exact event is inside the batch root.</small><div class="mono">leaf ${out.leaf}</div></div>`
+      : `<div class="verdict bad"><b>Not in the pickup</b><small>Either the receipt was changed or the item was never committed.</small></div>`;
+  } catch (e) { $("verifyMsg").innerHTML = `<div class="verdict bad"><b>Could not check</b><small>${esc(e.message)}</small></div>`; }
+};
+$("tamper").onclick = () => {
+  try { const r = JSON.parse($("receipt").value); r.values[4] = !r.values[4]; $("receipt").value = JSON.stringify(r, null, 2);
+    $("verifyMsg").innerHTML = '<div class="verdict warn"><b>Changed "contaminated" in the receipt</b><small>Now verify again.</small></div>'; } catch { }
+};
+refresh();
+</script>
+</body>
+</html>

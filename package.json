@@ -1,0 +1,29 @@
+{
+  "name": "binproof",
+  "version": "1.0.0",
+  "description": "Recycling contamination, recorded at the bin, verified by the facility, claimable once.",
+  "scripts": {
+    "test": "hardhat test",
+    "start": "node scripts/start.js",
+    "compile": "hardhat compile",
+    "wallets": "node scripts/wallets.js",
+    "deploy:testnet": "node scripts/deploy-testnet.js",
+    "serve": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "type": "commonjs",
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.6.1",
+    "@openzeppelin/merkle-tree": "^1.0.8",
+    "ethers": "^6.17.0",
+    "express": "^5.3.0"
+  },
+  "devDependencies": {
+    "hardhat": "2.26"
+  },
+  "engines": {
+    "node": ">=20.12"
+  }
+}
