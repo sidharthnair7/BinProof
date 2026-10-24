@@ -4,3 +4,4 @@ cache/
 data/
 deployment.json
 .env
+.idea/
