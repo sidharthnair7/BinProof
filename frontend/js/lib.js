@@ -102,15 +102,17 @@ export function Pointer() {
   useEffect(() => {
     if (matchMedia("(pointer: coarse)").matches) return;
     const m = { x: innerWidth / 2, y: innerHeight / 3, gx: innerWidth / 2, gy: innerHeight / 3 };
-    let raf, shown = false;
-    const move = (e) => { m.x = e.clientX; m.y = e.clientY;
-      if (!shown) { shown = true; grid.current.classList.add("on"); } };
+    let raf = 0, shown = false;
+    // Only runs while the field is catching up to the pointer; idle pages don't repaint.
     const tick = () => {
       m.gx += (m.x - m.gx) * .08; m.gy += (m.y - m.gy) * .08;
       grid.current.style.setProperty("--mx", m.gx + "px"); grid.current.style.setProperty("--my", m.gy + "px");
-      raf = requestAnimationFrame(tick);
+      raf = Math.abs(m.x - m.gx) + Math.abs(m.y - m.gy) > .5 ? requestAnimationFrame(tick) : 0;
     };
-    addEventListener("mousemove", move, { passive: true }); raf = requestAnimationFrame(tick);
+    const move = (e) => { m.x = e.clientX; m.y = e.clientY;
+      if (!shown) { shown = true; grid.current.classList.add("on"); }
+      if (!raf) raf = requestAnimationFrame(tick); };
+    addEventListener("mousemove", move, { passive: true });
     return () => { cancelAnimationFrame(raf); removeEventListener("mousemove", move); };
   }, []);
   return html`<div><div ref=${grid} className="gridfx" aria-hidden="true"></div></div>`;

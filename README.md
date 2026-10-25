@@ -1,6 +1,6 @@
-# BinProof
+# ChuteGuard
 
-**BinProof clips onto the chute sorter a tower already has. Every drop checked, every pickup verified by the facility, claimable once.**
+**ChuteGuard clips onto the chute sorter a tower already has. Every drop checked, every pickup verified by the facility, claimable once.**
 
 IEEE ClimateChain Global Hackathon 2026 · **Track: Sustainable Supply Chains** ("Recycling traceability systems", "Circular economy incentive platforms").
 
@@ -12,9 +12,9 @@ IEEE ClimateChain Global Hackathon 2026 · **Track: Sustainable Supply Chains** 
 - Since January 2026, producers pay for that recycling through Circular Materials. In December 2025, Ontario's Auditor General found the regulator "has not begun to enforce" audits of the performance data ([Auditor General of Ontario](https://www.auditor.on.ca/en/content/annualreports/arreports/en25/pa_RPRA_en25.pdf), sections 4.2.1 and 4.2.2). Every number is reported by someone who is paid by it.
 - A tower is one address. Nobody can see which floor contaminated the load, so nothing changes. Nobody checks what happens after the button.
 
-## What BinProof does
+## What ChuteGuard does
 
-1. **At the chute door (floor module).** The resident taps a fob and presses the stream button. BinProof logs the floor, the stream they picked, and a pseudonymous code for the unit.
+1. **At the chute door (floor module).** The resident taps a fob and presses the stream button. ChuteGuard logs the floor, the stream they picked, and a pseudonymous code for the unit.
 2. **At the bottom of the chute (sorter module).** A camera checks the drop against the stream that was picked. A vision model describes it (closed opaque bag, clear bag or loose item, and what it's made of), and a rules table decides. A metal sensor and a weight flap add evidence: the camera can't see inside a closed box, but the weight tells an empty one from a full one.
 3. **Sorted, diverted, or sent to review.** The drop goes to the stream that was picked, gets diverted (a black bag **to garbage**, visible food **to organics**), or goes to the **review tote** for the superintendent. Every drop is recorded with its floor, stream, what the camera saw, and where it went. The photo stays on the device; only its SHA-256 is kept.
 4. **The building commits each pickup.** A pickup closes the recycling drops into a Merkle tree, and the building's key commits the root, the counts and the model ID on chain.
@@ -47,7 +47,7 @@ For boxes, cartons, bottles, cans, cups and glass, the weight decides empty vs f
 
 ### Related work
 
-AI at the bin already sells. [Oscar Sort](https://intuitiveai.ca/oscar-sort) (Intuitive AI) retrofits existing public bins with a camera and a screen that tell people which bin their item goes in. That works where a person stands at a bin. In a tower, nobody stands at a screen: they drop it down the chute on their floor. BinProof goes in the chute, checks what actually landed, and has a second party sign the numbers.
+AI at the bin already sells. [Oscar Sort](https://intuitiveai.ca/oscar-sort) (Intuitive AI) retrofits existing public bins with a camera and a screen that tell people which bin their item goes in. That works where a person stands at a bin. In a tower, nobody stands at a screen: they drop it down the chute on their floor. ChuteGuard goes in the chute, checks what actually landed, and has a second party sign the numbers.
 
 ## Architecture
 
@@ -71,7 +71,7 @@ flowchart TB
   TOORG --> EVENT
   REVIEW --> EVENT
   EVENT --> TREE["Merkle tree of the recycling pickup"]
-  subgraph Chain["BinProof contract"]
+  subgraph Chain["ChuteGuard contract (BinProof.sol)"]
     COMMIT["commitBatch<br/>root, items, contaminated, model"]
     MEAS["reportMeasurement"]
     CHECK{"Building vs facility<br/>within 10 points?"}
@@ -141,7 +141,7 @@ Honest limit: Google's own Raspberry Pi 5 numbers for Gemma 4 E4B are about 20 s
 
 ## Impact projection (assumptions stated)
 
-These are assumptions to make the scale concrete, not measured results from BinProof.
+These are assumptions to make the scale concrete, not measured results from ChuteGuard.
 
 - A 300-unit tower, about 5 kg of recycling-stream material per unit a week: about **1.5 tonnes a week**.
 - At Toronto's 35.4%, about **530 kg a week** of that is contamination.
@@ -178,6 +178,7 @@ Open http://localhost:8080. Spring Boot serves the website from `frontend/` and 
 - The floor panel, metal sensor and weight flap are simulated in the demo. The camera's verdict is real, from a vision model running on the laptop.
 - The facility measurement in the demo is typed in, standing in for an audit sample.
 - The 10-point tolerance is a demo setting, fixed at deploy time.
+- The project was called BinProof until the day of submission, so the contract (`BinProof.sol`), the Java package and some file names still use that name.
 
 ## Team
 

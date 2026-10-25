@@ -12,7 +12,7 @@ export const Beams = () => html`<svg className="beams" viewBox="0 0 1600 900" pr
     <stop offset="0" stop-color="#557b4c" stop-opacity="0"/><stop offset=".35" stop-color="#557b4c"/>
     <stop offset=".65" stop-color="#90ad69"/><stop offset="1" stop-color="#b17d47"/></linearGradient></defs>
   ${BEAM_PATHS.map((d, i) => html`<path key=${"b" + i} className="b" d=${d}/>`)}
-  ${BEAM_PATHS.map((d, i) => html`<path key=${"p" + i} className="p" d=${d} pathLength="1000"
+  ${BEAM_PATHS.filter((_, i) => i % 2 === 0).map((d, i) => html`<path key=${"p" + i} className="p" d=${d} pathLength="1000"
     style=${{ "--d": `${7 + (i * 1.7) % 5}s`, "--dl": `${(i * 1.13) % 6}s` }}/>`)}
 </svg>`;
 
@@ -20,7 +20,7 @@ export const Beams = () => html`<svg className="beams" viewBox="0 0 1600 900" pr
 // its bale, live from this building's chain. The 3D only loads once the section is near the screen.
 function SealShowcase({ state, go, refresh }) {
   const box = useRef(null); const [near, setNear] = useState(false); const [busy, setBusy] = useState(false);
-  useEffect(() => { const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setNear(true); io.disconnect(); } }, { rootMargin: "300px" });
+  useEffect(() => { const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) { io.disconnect(); (window.requestIdleCallback || setTimeout)(() => setNear(true), { timeout: 600 }); } }, { threshold: .2 });
     if (box.current) io.observe(box.current); return () => io.disconnect(); }, []);
   const pickups = state.batches.slice().reverse();
   const batch = pickups.find((b) => b.status === "Verified") || pickups[0];
@@ -50,7 +50,7 @@ export function Landing({ go, state, refresh }) {
   const hot = [3, 7, 8, 12, 15, 19, 21, 24, 27, 30, 33];
   return html`<div className="herowrap"><${Beams}/><div className="herofade"></div><div className="aurora" aria-hidden="true">
       ${[["#90ad69", 520, "6%", "-4%", 0], ["#d5a76c", 420, "40%", "8%", 2], ["#557b4c", 380, "66%", "-8%", 4]].map(([c, sz, l, t, dl]) => html`<${motion.i} key=${c}
-        style=${{ background: c, width: sz, height: sz, left: l, top: t }} animate=${{ x: [0, 40, -30, 0], y: [0, 30, -20, 0] }} transition=${{ duration: 18, repeat: Infinity, ease: "easeInOut", delay: dl }}/>`)}
+        style=${{ background: c, width: sz, height: sz, left: l, top: t }} />`)}
     </div>
   <main className="wrap" style=${{ position: "relative", zIndex: 1 }}>
     <section className="hero">

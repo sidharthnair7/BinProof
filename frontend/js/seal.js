@@ -233,7 +233,7 @@ export function Bale3D({ batch, onPick, pickProp, brokenProp, onSealed }) {
       if (disposed) return;
       const el = mount.current, W = () => el.clientWidth, H = () => el.clientHeight;
       const renderer = new THREE.WebGLRenderer({ antialias: true });
-      renderer.setPixelRatio(Math.min(2, devicePixelRatio)); renderer.setSize(W(), H());
+      renderer.setPixelRatio(Math.min(1.5, devicePixelRatio)); renderer.setSize(W(), H());
       renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
       renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       el.appendChild(renderer.domElement); renderer.domElement.style.cursor = "grab";
@@ -244,7 +244,7 @@ export function Bale3D({ batch, onPick, pickProp, brokenProp, onSealed }) {
       Object.assign(controls, { enableDamping: true, dampingFactor: .07, enableZoom: false, enablePan: false, autoRotate: true, autoRotateSpeed: .35, minPolarAngle: .35, maxPolarAngle: 1.45 });
       controls.target.set(0, Math.min(9, (5.2 + tree.leaves.length * 1.08 + 2) / 2), 0);
       const sun = new THREE.DirectionalLight(0xffffff, 2.4); sun.position.set(6, 14, 8); sun.castShadow = true;
-      sun.shadow.mapSize.set(2048, 2048); Object.assign(sun.shadow.camera, { left: -8, right: 8, top: 8, bottom: -8 }); sun.shadow.radius = 6; scene.add(sun);
+      sun.shadow.mapSize.set(1024, 1024); Object.assign(sun.shadow.camera, { left: -8, right: 8, top: 8, bottom: -8 }); sun.shadow.radius = 6; scene.add(sun);
       scene.add(new THREE.HemisphereLight(0xdfe6ff, 0x20232b, .5));
       const floor = new THREE.Mesh(new THREE.CircleGeometry(30, 64), new THREE.MeshStandardMaterial({ color: 0x1d2027, roughness: 1 }));
       floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
@@ -380,11 +380,15 @@ export function Bale3D({ batch, onPick, pickProp, brokenProp, onSealed }) {
           strapF.visible = sf > 0; strapF.scale.set(1, 1, Math.max(.001, sf));
           if (!sealedSent && pd > 3.2) { sealedSent = true; sealedCb.current?.(); }
         }
-        meshes.forEach((m) => { m.instanceMatrix.needsUpdate = true; }); controls.update(); renderer.render(scene, camera); raf = requestAnimationFrame(tick);
+        // Off screen, skip the draw so the rest of the page stays smooth.
+        if (onScreen) { meshes.forEach((m) => { m.instanceMatrix.needsUpdate = true; }); controls.update(); renderer.render(scene, camera); }
+        raf = requestAnimationFrame(tick);
       };
+      let onScreen = true;
+      const vis = new IntersectionObserver(([e]) => { onScreen = e.isIntersecting; }); vis.observe(el);
       raf = requestAnimationFrame(tick);
       ro = new ResizeObserver(() => { renderer.setSize(W(), H()); camera.aspect = W() / H(); camera.updateProjectionMatrix(); }); ro.observe(el);
-      ctl.current.cleanup = () => { cancelAnimationFrame(raf); ro.disconnect(); controls.dispose(); renderer.dispose(); pm.dispose(); el.innerHTML = ""; };
+      ctl.current.cleanup = () => { cancelAnimationFrame(raf); vis.disconnect(); ro.disconnect(); controls.dispose(); renderer.dispose(); pm.dispose(); el.innerHTML = ""; };
     }).catch((e) => { console.error(e); setFailed(true); });
     return () => { disposed = true; ctl.current.cleanup?.(); };
   }, [tree, failed]);
