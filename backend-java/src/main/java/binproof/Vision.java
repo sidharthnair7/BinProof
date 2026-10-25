@@ -13,6 +13,7 @@ import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * The bin's eye. The model only describes what it sees; the rules table decides. Tested Oct 24: asked to
@@ -39,6 +40,10 @@ public class Vision {
         REJECTED.put("garbage", "This is garbage, not recycling.");
     }
     static final String DIRTY = "It still has food or liquid in it, which contaminates the load. Empty it first.";
+    // The camera can't see inside a closed box, so the weight flap decides empty vs full for containers.
+    // Demo thresholds, to be calibrated with real items. Glass is heavy even when empty, so it gets its own.
+    static final Set<String> CONTAINERS = Set.of("cardboard", "carton", "rigid_plastic", "metal", "paper_cup");
+    static final double EMPTY_MAX_KG = 0.15, EMPTY_GLASS_MAX_KG = 0.7;
 
     private final ObjectMapper json = new ObjectMapper();
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
@@ -64,7 +69,7 @@ public class Vision {
                  "bag": "opaque_bag" if it is a closed bag you cannot see into (black, dark or coloured), "clear_bag" if it is a see-through bag, "loose" if it is not in a bag,
                  "item": short name of the item, or of what is visible inside a clear bag,
                  "material": one of %s,
-                 "has_food_or_liquid": true if food, grease or liquid is visibly left on or in it,
+                 "has_food_or_liquid": true only if you can see real food, grease or liquid on it or spilling out of it. Pictures of food printed on packaging are not food. A closed box or bottle you cannot see into is false,
                  "clearly_visible": true only if one item fills a good part of the picture,
                  "confidence": number from 0 to 1 for how sure you are of the material}""".formatted(materials);
     }
@@ -95,8 +100,15 @@ public class Vision {
                 else if (review) { route = "review"; contaminated = false; reason = "The camera isn't sure: sent to the review tote for the superintendent."; }
                 else if ("ORGANICS".equals(detected)) { route = "to_organics"; contaminated = true;
                     reason = "Food in recycling contaminates the load. Diverted to organics; recorded against this floor."; }
-                else { contaminated = Boolean.TRUE.equals(v.get("contaminated")); route = "recycling";
-                    reason = contaminated ? "Doesn't belong in recycling. Recorded against this floor: " + v.get("reason") : (String) v.get("reason"); }
+                else {
+                    String material = String.valueOf(v.get("category"));
+                    boolean container = "glass".equals(material) || CONTAINERS.contains(material);
+                    boolean full = container && weightKg > ("glass".equals(material) ? EMPTY_GLASS_MAX_KG : EMPTY_MAX_KG);
+                    // For a container the weight decides empty vs full; the camera's guess about a closed box is ignored.
+                    contaminated = container ? full : Boolean.TRUE.equals(v.get("contaminated")); route = "recycling";
+                    reason = full ? "Heavier than an empty one (%.2f kg on the flap), so it still has something in it. Recorded against this floor. Empty it first.".formatted(weightKg)
+                        : container ? ACCEPTED.get(material)
+                        : contaminated ? "Doesn't belong in recycling. Recorded against this floor: " + v.get("reason") : (String) v.get("reason"); }
             }
         }
         d.put("route", route); d.put("contaminated", contaminated); d.put("reason", reason);

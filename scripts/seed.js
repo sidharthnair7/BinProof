@@ -17,7 +17,7 @@ function add(i, stream, detected, item, contaminated, route) {
     imageSha256: "0x" + "0".repeat(64),
     seeded: true,
     verdict: { item, category: detected.toLowerCase(), contaminated, reason: "seeded demo event", confidence: 0.9, model: "seeded" },
-    chute: { floor, stream, detected, route, signals: { camera: "seeded", metal: 0, weightKg: 1, metalSource: "seeded", weightSource: "seeded" } },
+    chute: { floor, stream, detected, route, signals: { camera: "seeded", metal: 0, weightKg: 0.05, metalSource: "seeded", weightSource: "seeded" } },
   });
 }
 

@@ -15,7 +15,7 @@ IEEE ClimateChain Global Hackathon 2026 · **Track: Sustainable Supply Chains** 
 ## What BinProof does
 
 1. **At the chute door (floor module).** The resident taps a fob and presses the stream button. BinProof logs the floor, the stream they picked, and a pseudonymous code for the unit.
-2. **At the bottom of the chute (sorter module).** A camera checks the drop against the stream that was picked. A vision model describes it (closed opaque bag, clear bag or loose item, and what it's made of), and a rules table decides. A metal sensor and a weight flap add evidence.
+2. **At the bottom of the chute (sorter module).** A camera checks the drop against the stream that was picked. A vision model describes it (closed opaque bag, clear bag or loose item, and what it's made of), and a rules table decides. A metal sensor and a weight flap add evidence: the camera can't see inside a closed box, but the weight tells an empty one from a full one.
 3. **Sorted, diverted, or sent to review.** The drop goes to the stream that was picked, gets diverted (a black bag **to garbage**, visible food **to organics**), or goes to the **review tote** for the superintendent. Every drop is recorded with its floor, stream, what the camera saw, and where it went. The photo stays on the device; only its SHA-256 is kept.
 4. **The building commits each pickup.** A pickup closes the recycling drops into a Merkle tree, and the building's key commits the root, the counts and the model ID on chain.
 5. **The facility checks it, with its own key.** The recycling facility signs the contamination it measured in that load. Within 10 points of the building's number, the pickup is **Verified**; otherwise it's **Flagged**.
@@ -30,7 +30,7 @@ What we can't see is recyclables hidden in black bags sent down as garbage. We d
 
 ### The compost question
 
-Food the camera can see in the recycling stream is diverted to organics and recorded against the floor. Food it can't see, like a yogurt cup that still has yogurt in it or grease inside a closed box, passes the camera. **The facility's measurement catches it**: the facility measures the real load, so hidden food makes its number higher than the building's. If the gap is more than 10 points, the pickup is **Flagged** and nothing can be claimed. The camera catches what it can see. The facility catches the rest. If they disagree, nothing gets claimed.
+Food the camera can see in the recycling stream is diverted to organics and recorded against the floor. Food inside a closed container makes it heavier than an empty one, so **the weight flap** catches a full yogurt cup the camera can't see into. What neither can catch, like grease inside a pizza box, **the facility's measurement catches**: the facility measures the real load, so hidden food makes its number higher than the building's. If the gap is more than 10 points, the pickup is **Flagged** and nothing can be claimed. The camera catches what it can see. The facility catches the rest. If they disagree, nothing gets claimed.
 
 | Stream picked | What the sorter sees | Route |
 |---|---|---|
@@ -38,11 +38,12 @@ Food the camera can see in the recycling stream is diverted to organics and reco
 | Recycling | closed opaque bag | **diverted to garbage**, floor notice |
 | Recycling | not sure, or low confidence | **review tote** |
 | Recycling | food it can see | **diverted to organics**, recorded against the floor |
-| Recycling | loose or clear-bag item | recycling (contamination recorded against the floor if it doesn't belong, including a container with food left in it) |
+| Recycling | closed box, carton, bottle, can or cup heavier than an empty one (over 0.15 kg; glass over 0.7 kg) | recycling, recorded against the floor as contamination: it still has something in it |
+| Recycling | loose or clear-bag item | recycling (contamination recorded against the floor if it doesn't belong) |
 | Organics | metal hit, or unusually heavy | **review tote** |
 | Organics | anything else | organics |
 
-The model describes, the rules decide. The table lives in [`Vision.java`](backend-java/src/main/java/binproof/Vision.java) (`decide`).
+For boxes, cartons, bottles, cans, cups and glass, the weight decides empty vs full and the camera's guess is ignored: from the outside, a closed box can't show a camera whether it's empty. In our own test, the camera called an empty cracker box "still has food in it". The weight thresholds are demo values, to be calibrated with real items. The model describes, the rules decide. The table lives in [`Vision.java`](backend-java/src/main/java/binproof/Vision.java) (`decide`).
 
 ### Related work
 
@@ -95,7 +96,8 @@ flowchart TB
 | Drops, pickups, review, receipts | [`Ledger.java`](backend-java/src/main/java/binproof/Ledger.java) |
 | OpenZeppelin-compatible Merkle trees | [`Merkle.java`](backend-java/src/main/java/binproof/Merkle.java) |
 | Chain calls and the two signers (web3j) | [`Chain.java`](backend-java/src/main/java/binproof/Chain.java) |
-| Website (React) | [`frontend/index.html`](frontend/index.html) |
+| Website (React, no build step): the page shell and styles | [`frontend/index.html`](frontend/index.html), [`frontend/css/app.css`](frontend/css/app.css) |
+| Website pages, one module each | [`frontend/js/`](frontend/js): `main.js` (app shell and tabs), `chute.js`, `building.js`, `facility.js`, `verify.js`, `seal.js` (the 3D pickup), `landing.js`, `lib.js` (shared pieces) |
 | Local chain, deploy, seeded drops | [`scripts/`](scripts), [`hardhat.config.js`](hardhat.config.js) |
 
 ## Hardware: software first, the kit comes next
@@ -135,7 +137,7 @@ Honest limit: Google's own Raspberry Pi 5 numbers for Gemma 4 E4B are about 20 s
 - **Two keys, two parties.** The contract accepts a batch only from the building's address and a measurement only from the facility's. In the demo, one backend holds both keys so judges can play both roles. In a real deployment, the facility signs from its own system.
 - **The chain makes the AI's claim tamper-evident, not correct.** That's why the model ID and confidence are recorded, unsure drops go to a person, and an independent measurement decides whether anything can be claimed.
 - **The camera sees waste, not people.** It points at the bottom of the chute. No faces, no names, no photos on any public system.
-- **Known limits:** food hidden inside a container passes the camera (the facility's measurement catches it, and the pickup flags); people can skip the chute and carry bags down; without fobs, attribution is floor-level only; we can't see recyclables hidden inside garbage bags; a building and a facility that collude can still lie together; the facility's figure is extrapolated from a sample; a unit hash is still personal data to the building that holds the salt; v1 needs a tower with a stream choice (a tri-sorter or separate chutes). How many Toronto towers have one: [NEEDS SOURCE].
+- **Known limits:** grease or a little food left inside a container can pass both the camera and the weight flap (the facility's measurement catches it, and the pickup flags); the weight thresholds are demo values, not calibrated; people can skip the chute and carry bags down; without fobs, attribution is floor-level only; we can't see recyclables hidden inside garbage bags; a building and a facility that collude can still lie together; the facility's figure is extrapolated from a sample; a unit hash is still personal data to the building that holds the salt; v1 needs a tower with a stream choice (a tri-sorter or separate chutes). How many Toronto towers have one: [NEEDS SOURCE].
 
 ## Impact projection (assumptions stated)
 

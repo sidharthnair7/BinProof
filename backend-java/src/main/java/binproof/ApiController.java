@@ -64,7 +64,7 @@ public class ApiController {
         if (!List.of("RECYCLING", "GARBAGE", "ORGANICS").contains(stream)) throw new IllegalArgumentException("stream must be RECYCLING, GARBAGE or ORGANICS");
         int floor = Integer.parseInt(String.valueOf(body.getOrDefault("floor", "12")));
         double metal = Double.parseDouble(String.valueOf(body.getOrDefault("metal", "0")));
-        double weightKg = Double.parseDouble(String.valueOf(body.getOrDefault("weightKg", "1.2")));
+        double weightKg = Double.parseDouble(String.valueOf(body.getOrDefault("weightKg", "0.05")));
         Map<String, Object> d = Vision.decide(verdict, stream, metal, weightKg);
         verdict.putAll(d);
         Map<String, Object> chute = new LinkedHashMap<>();
