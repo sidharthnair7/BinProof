@@ -232,21 +232,22 @@ export function Bale3D({ batch, onPick, pickProp, brokenProp, onSealed }) {
     loadBale().then(([THREE, { OrbitControls }, { RoundedBoxGeometry }, { RoomEnvironment }, CANNON]) => {
       if (disposed) return;
       const el = mount.current, W = () => el.clientWidth, H = () => el.clientHeight;
-      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); renderer.setClearColor(0x000000, 0);
       renderer.setPixelRatio(Math.min(1.5, devicePixelRatio)); renderer.setSize(W(), H());
       renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
-      renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
       el.appendChild(renderer.domElement); renderer.domElement.style.cursor = "grab";
-      const scene = new THREE.Scene(); scene.background = new THREE.Color(0x16181d);
+      const scene = new THREE.Scene(); scene.fog = new THREE.Fog(0x13241b, 34, 70); // the page behind draws the forest backdrop
       const pm = new THREE.PMREMGenerator(renderer); scene.environment = pm.fromScene(new RoomEnvironment(), .04).texture;
       const camera = new THREE.PerspectiveCamera(25, W() / H(), .1, 200); camera.position.set(16, 13, 26);
       const controls = new OrbitControls(camera, renderer.domElement);
       Object.assign(controls, { enableDamping: true, dampingFactor: .07, enableZoom: false, enablePan: false, autoRotate: true, autoRotateSpeed: .35, minPolarAngle: .35, maxPolarAngle: 1.45 });
       controls.target.set(0, Math.min(9, (5.2 + tree.leaves.length * 1.08 + 2) / 2), 0);
-      const sun = new THREE.DirectionalLight(0xffffff, 2.4); sun.position.set(6, 14, 8); sun.castShadow = true;
+      const sun = new THREE.DirectionalLight(0xfff1dc, 2.6); sun.position.set(6, 14, 8); sun.castShadow = true;
       sun.shadow.mapSize.set(1024, 1024); Object.assign(sun.shadow.camera, { left: -8, right: 8, top: 8, bottom: -8 }); sun.shadow.radius = 6; scene.add(sun);
-      scene.add(new THREE.HemisphereLight(0xdfe6ff, 0x20232b, .5));
-      const floor = new THREE.Mesh(new THREE.CircleGeometry(30, 64), new THREE.MeshStandardMaterial({ color: 0x1d2027, roughness: 1 }));
+      scene.add(new THREE.HemisphereLight(0xf3ead7, 0x1a3024, .65));
+      const rim = new THREE.DirectionalLight(0x9fd48a, 1.1); rim.position.set(-10, 6, -12); scene.add(rim);
+      const floor = new THREE.Mesh(new THREE.CircleGeometry(30, 64), new THREE.ShadowMaterial({ opacity: .45 }));
       floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
 
       // The data: leaves in tree order, so siblings sit side by side in the bale.
@@ -282,13 +283,13 @@ export function Bale3D({ batch, onPick, pickProp, brokenProp, onSealed }) {
       const binGroup = new THREE.Group(); scene.add(binGroup);
       [[BW, BH, .04, 0, BH / 2, BD / 2], [BW, BH, .04, 0, BH / 2, -BD / 2], [.04, BH, BD, BW / 2, BH / 2, 0], [.04, BH, BD, -BW / 2, BH / 2, 0]].forEach(([w, h, d, x, y, z]) => {
         const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), glass); m.position.set(x, y, z); binGroup.add(m);
-        const e = new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry), new THREE.LineBasicMaterial({ color: 0x9fb4ff, transparent: true, opacity: .35 })); e.position.copy(m.position); binGroup.add(e); });
+        const e = new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry), new THREE.LineBasicMaterial({ color: 0xe9dcc0, transparent: true, opacity: .4 })); e.position.copy(m.position); binGroup.add(e); });
 
       const SH = .72, TOP = 5.2 + n * 1.08 + 2;
       [[SH * 2, TOP - BH, .04, 0, (TOP + BH) / 2, SH], [SH * 2, TOP - BH, .04, 0, (TOP + BH) / 2, -SH], [.04, TOP - BH, SH * 2, SH, (TOP + BH) / 2, 0], [.04, TOP - BH, SH * 2, -SH, (TOP + BH) / 2, 0]].forEach(([w, h, d, x, y, z]) => {
         const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), glass); m.position.set(x, y, z); binGroup.add(m); });
       for (let fy = BH + 1.6, fl = 1; fy < TOP; fy += 2.2, fl++) {
-        const door = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(SH * 2 + .2, .5, SH * 2 + .2)), new THREE.LineBasicMaterial({ color: 0x9fb4ff, transparent: true, opacity: .55 }));
+        const door = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(SH * 2 + .2, .5, SH * 2 + .2)), new THREE.LineBasicMaterial({ color: 0xe9dcc0, transparent: true, opacity: .55 }));
         door.position.set(0, fy, 0); binGroup.add(door); }
       // Physics.
       const world = new CANNON.World({ gravity: new CANNON.Vec3(0, -14, 0) }); world.allowSleep = true;
@@ -401,7 +402,8 @@ export function Bale3D({ batch, onPick, pickProp, brokenProp, onSealed }) {
 export function SealSandbox({ state, exit }) {
   const pickups = state.batches.slice().reverse();
   const [sel, setSel] = useState(null);
-  const batch = pickups.find((b) => b.batchId === sel) || pickups.find((b) => b.status === "Verified") || pickups[0];
+  const fullest = (list) => list.slice().sort((a, b) => b.items - a.items)[0];
+  const batch = pickups.find((b) => b.batchId === sel) || fullest(pickups.filter((b) => b.status === "Verified")) || fullest(pickups);
   const [item, setItem] = useState(null); const [receipt, setReceipt] = useState(null); const [tampered, setTampered] = useState(false);
   const [result, setResult] = useState(null); const [busy, setBusy] = useState(false); const [sealed, setSealed] = useState(false);
   useEffect(() => { setItem(null); setReceipt(null); setResult(null); setTampered(false); setSealed(false); }, [batch?.batchId]);
@@ -419,13 +421,13 @@ export function SealSandbox({ state, exit }) {
     ${batch ? html`<${Bale3D} key=${batch.batchId} batch=${batch} onPick=${onPick} pickProp=${item ? item.i : null} brokenProp=${!!(result && !result.ok)} onSealed=${() => setSealed(true)}/>`
       : html`<div style=${{ position: "absolute", inset: 0, display: "grid", placeItems: "center" }}><p className="serif" style=${{ fontSize: 34 }}>Nothing sealed yet.</p></div>`}
     <div className="vignette"></div>
-    <div className="corner" style=${{ left: 26, top: 22 }}><button className="ghost" onClick=${exit}>← BinProof</button></div>
+    <div className="corner" style=${{ left: 26, top: 22 }}><button className="ghost" onClick=${exit}>← ChuteGuard</button></div>
     <div className="corner" style=${{ right: 26, top: 22 }}>${pickups.map((b) => html`<button key=${b.batchId} className=${"ghost" + (b.batchId === batch?.batchId ? " on" : "")} onClick=${() => setSel(b.batchId)}>
       Pickup #${b.number} · ${b.status}</button>`)}</div>
     ${batch && html`<${motion.div} key=${"t" + batch.batchId} style=${{ position: "absolute", left: 34, bottom: 40, zIndex: 5, pointerEvents: "none" }}
       initial=${{ opacity: 0, y: 14 }} animate=${{ opacity: 1, y: 0 }} transition=${{ duration: 1, ease: EASE, delay: .4 }}>
       <div className="serif" style=${{ fontSize: 64, lineHeight: 1 }}>Pickup #${batch.number}, sealed.</div>
-      <div style=${{ marginTop: 10, fontSize: 17, color: "rgba(234,240,255,.7)" }}>${batch.items} recycling drops down the chute, pressed into one fingerprint. Strapped by the building, then the facility.</div>
+      <div style=${{ marginTop: 10, fontSize: 17, color: "rgba(234,240,255,.7)" }}>${batch.items} recycling ${batch.items === 1 ? "drop" : "drops"} down the chute, pressed into one fingerprint. Strapped by the building, then the facility.</div>
       <div className="mono" style=${{ marginTop: 6, color: "rgba(234,240,255,.45)" }}>root ${short(batch.root)}</div><//>`}
     <${AnimatePresence}>${sealed && (ok || bad) && html`<${motion.div} key="stamp" style=${{ position: "absolute", left: "50%", top: 26, zIndex: 5, translateX: "-50%",
         color: ok ? "#7ff5c7" : "#ff9aa1", border: `2px solid ${ok ? "#2ee6a1" : "#ff4d5a"}`, borderRadius: 12, padding: "8px 16px", font: '800 14px "Inter Tight"', letterSpacing: ".1em", textTransform: "uppercase", background: "rgba(0,0,0,.3)" }}

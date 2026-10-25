@@ -32,7 +32,7 @@ export function App() {
       transition=${{ type: "tween", ease: EASE, duration: .5 }}>
       <div className="brand-link" onClick=${() => setTab("home")}>
         <${motion.div} animate=${{ scale: scrolled ? .8 : 1 }} style=${{ display: "flex" }}><${Logo}/><//>
-        <div><${motion.div} className="brand" animate=${{ fontSize: scrolled ? "21px" : "25px" }}>Bin<span>Proof</span><//>
+        <div><${motion.div} className="brand" animate=${{ fontSize: scrolled ? "21px" : "25px" }}>Chute<span>Guard</span><//>
           <${AnimatePresence}>${!scrolled && html`<${motion.div} className="sub" initial=${{ opacity: 0, height: 0 }} animate=${{ opacity: 1, height: "auto" }} exit=${{ opacity: 0, height: 0 }}>Checked at the chute. Verified by the facility. Claimable once.<//>`}<//></div></div>
       <div className="grow"></div>
       ${tab === "home"

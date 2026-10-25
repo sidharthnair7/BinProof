@@ -271,3 +271,40 @@ nav button.on .n {
 .bn li::before {
   background: linear-gradient(135deg, #557b4c, #b17d47);
 }
+
+/* phones: one tidy header row with a scrollable nav, smaller hero type */
+@media (max-width: 760px) {
+  .navshell { gap: 10px; padding-left: 14px !important; padding-right: 10px !important; flex-wrap: nowrap; }
+  .navshell .sub, .navshell .live { display: none; }
+  .brand { font-size: 20px !important; }
+  .navshell .grow { display: none; }
+  nav { flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; -webkit-mask-image: linear-gradient(90deg, #000 85%, transparent); mask-image: linear-gradient(90deg, #000 85%, transparent); }
+  nav::-webkit-scrollbar { display: none; }
+  nav button { white-space: nowrap; flex: none; padding: 8px 10px; font-size: 13.5px; }
+  .wrap { padding-left: 16px; padding-right: 16px; }
+  .hero { padding: 36px 0 32px; gap: 28px; }
+  .h1 { font-size: 40px; }
+  .lede { font-size: 17px; }
+  .eyebrow { font-size: 12px; }
+  .btn.lg { padding: 13px 18px; font-size: 15.5px; }
+}
+
+/* The Seal sits on a deep forest backdrop that matches the earthy theme; the 3D canvas is transparent over it. */
+.sandbox, .showcase-stage {
+  background:
+    radial-gradient(60% 55% at 50% 38%, rgba(144, 173, 105, 0.22), transparent 70%),
+    radial-gradient(40% 35% at 80% 90%, rgba(213, 167, 108, 0.12), transparent 70%),
+    linear-gradient(180deg, #1b3326 0%, #11211a 60%, #0c1712 100%);
+  color: #f3efe4;
+}
+.showcase-stage { box-shadow: 0 50px 100px -50px rgba(26, 48, 36, 0.7); }
+.showcase-vignette { background: linear-gradient(90deg, rgba(12, 23, 18, .85) 0%, rgba(12, 23, 18, .35) 38%, transparent 60%); }
+.sandbox .vignette { background: radial-gradient(120% 90% at 50% 45%, transparent 60%, rgba(6, 12, 9, .5) 100%); }
+@media (max-width: 760px) { .showcase-vignette { background: linear-gradient(0deg, rgba(12, 23, 18, .9) 0%, rgba(12, 23, 18, .4) 45%, transparent 70%); } }
+
+/* The Seal's corner controls: no viewfinder brackets, frosted cream pills in the theme (no backdrop blur over WebGL, so it stays smooth) */
+.sandbox .corner { border: 0; height: auto; }
+.sandbox .ghost { background: rgba(243, 239, 228, 0.1); border: 1px solid rgba(243, 239, 228, 0.22); color: #f3efe4; backdrop-filter: none;
+  padding: 10px 18px; box-shadow: 0 8px 24px -12px rgba(0, 0, 0, 0.5); transition: background .25s, border-color .25s, transform .25s; }
+.sandbox .ghost:hover { background: rgba(243, 239, 228, 0.18); border-color: rgba(243, 239, 228, 0.4); transform: translateY(-1px); }
+.sandbox .ghost.on { background: linear-gradient(135deg, #e9dcc0, #c9d8a8); color: #1a3024; border-color: transparent; }

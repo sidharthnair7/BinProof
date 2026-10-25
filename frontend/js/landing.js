@@ -23,7 +23,8 @@ function SealShowcase({ state, go, refresh }) {
   useEffect(() => { const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) { io.disconnect(); (window.requestIdleCallback || setTimeout)(() => setNear(true), { timeout: 600 }); } }, { threshold: .2 });
     if (box.current) io.observe(box.current); return () => io.disconnect(); }, []);
   const pickups = state.batches.slice().reverse();
-  const batch = pickups.find((b) => b.status === "Verified") || pickups[0];
+  const fullest = (list) => list.slice().sort((a, b) => b.items - a.items)[0];
+  const batch = fullest(pickups.filter((b) => b.status === "Verified")) || fullest(pickups);
   const waiting = state.events.filter((e) => !e.batchId && !e.needsReview && (e.stream || "RECYCLING") === "RECYCLING" && !["diverted", "to_organics"].includes(e.route)).length;
   const seal = async () => { setBusy(true); try { await api("/api/pickup", {}); await refresh(); } finally { setBusy(false); } };
   const tone = batch?.status === "Verified" ? "ok" : batch?.status === "Flagged" ? "bad" : "";
@@ -36,7 +37,7 @@ function SealShowcase({ state, go, refresh }) {
       <div className="showcase-copy">
         <div className="showcase-eyebrow">The Seal · live from this building's chain</div>
         <h2 className="h2">Every pickup,<br/>sealed.</h2>
-        <p>${batch ? `${batch.items} recycling drops pour down the chute and get pressed into one fingerprint: the root the building signs on chain. Drag to turn it; open it full screen to pull out any block and check its receipt.`
+        <p>${batch ? `${batch.items} recycling ${batch.items === 1 ? "drop pours" : "drops pour"} down the chute and get pressed into one fingerprint: the root the building signs on chain. Drag to turn it; open it full screen to pull out any block and check its receipt.`
           : "At pickup, every recycling drop pours down the chute and gets pressed into one fingerprint: the root the building signs on chain."}</p>
         ${batch ? html`<button className="btn green lg" onClick=${() => go("seal")}>Open the Seal full screen →</button>`
           : html`<button className="btn green lg" disabled=${busy || !waiting} onClick=${seal}>${busy ? "Signing on chain…" : "Seal a pickup now →"}</button>`}
@@ -57,7 +58,7 @@ export function Landing({ go, state, refresh }) {
       <div>
         <${Rise} now=${true}><span className="eyebrow"><span className="dot"></span>A retrofit kit for the garbage chute a tower already has</span><//>
         <${Rise} now=${true} d=${.06}><h1 className="h1">Every drop down<br/>the chute, <em>checked.</em></h1><//>
-        <${Rise} now=${true} d=${.12}><p className="lede">BinProof clips onto the chute a tower already has. It knows which stream each resident picked, checks the drop at the bottom, diverts black bags out of recycling, and turns each pickup into numbers the recycling facility can verify. Without watching anyone.</p><//>
+        <${Rise} now=${true} d=${.12}><p className="lede">ChuteGuard clips onto the chute a tower already has. It knows which stream each resident picked, checks the drop at the bottom, diverts black bags out of recycling, and turns each pickup into numbers the recycling facility can verify. Without watching anyone.</p><//>
         <${Rise} now=${true} d=${.18} className="cta">
           <button className="btn green lg" id="openApp" onClick=${() => go("bin")}>Drop something down the chute →</button>
           <button className="btn alt lg" onClick=${() => go("verify")}>Verify a receipt</button><//>
@@ -116,6 +117,6 @@ export function Landing({ go, state, refresh }) {
       ].map(([b, t], i) => html`<${Rise} key=${b} d=${i * .08}><div><b>${b}</b><span>${t}</span></div><//>`)}</div>
       <${Rise} d=${.1} className="cta" style=${{ marginTop: 34 }}><button className="btn green lg" onClick=${() => go("bin")}>Try it: drop something down the chute →</button><//>
     </section>
-    <footer><span><b style=${{ color: "var(--ink)" }}>BinProof</b> · Made by <a href="https://github.com/sidharthnair7" target="_blank" rel="noopener" style=${{ color: "inherit", fontWeight: 600 }}>Sidharth Nair</a> & <a href="https://github.com/Trinidaddy111" target="_blank" rel="noopener" style=${{ color: "inherit", fontWeight: 600 }}>Trinidad Laguardia</a>, two CS students.</span><a href="https://github.com/sidharthnair7/ChuteGuard" target="_blank" rel="noopener" style=${{ color: "inherit", fontWeight: 600 }}>Open source on GitHub ↗</a></footer>
+    <footer><span><b style=${{ color: "var(--ink)" }}>ChuteGuard</b> · Made by <a href="https://github.com/sidharthnair7" target="_blank" rel="noopener" style=${{ color: "inherit", fontWeight: 600 }}>Sidharth Nair</a> & <a href="https://github.com/Trinidaddy111" target="_blank" rel="noopener" style=${{ color: "inherit", fontWeight: 600 }}>Trinidad Laguardia</a>, two CS students.</span><a href="https://github.com/sidharthnair7/ChuteGuard" target="_blank" rel="noopener" style=${{ color: "inherit", fontWeight: 600 }}>Open source on GitHub ↗</a></footer>
   </main></div>`;
 }
