@@ -179,6 +179,13 @@ Open http://localhost:8080. Spring Boot serves the website from `frontend/` and 
 - The facility measurement in the demo is typed in, standing in for an audit sample.
 - The 10-point tolerance is a demo setting, fixed at deploy time.
 
+## Team
+
+Two CS students.
+
+- **Sidharth Nair**: [github.com/sidharthnair7](https://github.com/sidharthnair7)
+- **Trinidad Laguardia**: [github.com/Trinidaddy111](https://github.com/Trinidaddy111)
+
 ## License
 
-MIT
+MIT, Sidharth Nair and Trinidad Laguardia. See [LICENSE](LICENSE).

@@ -116,6 +116,6 @@ export function Landing({ go, state, refresh }) {
       ].map(([b, t], i) => html`<${Rise} key=${b} d=${i * .08}><div><b>${b}</b><span>${t}</span></div><//>`)}</div>
       <${Rise} d=${.1} className="cta" style=${{ marginTop: 34 }}><button className="btn green lg" onClick=${() => go("bin")}>Try it: drop something down the chute →</button><//>
     </section>
-    <footer><span><b style=${{ color: "var(--ink)" }}>BinProof</b> · Made by Sid &amp; Trini, two CS students.</span><a href="https://github.com/sidharthnair7/BinProof" target="_blank" rel="noopener" style=${{ color: "inherit", fontWeight: 600 }}>Open source on GitHub ↗</a></footer>
+    <footer><span><b style=${{ color: "var(--ink)" }}>BinProof</b> · Made by <a href="https://github.com/sidharthnair7" target="_blank" rel="noopener" style=${{ color: "inherit", fontWeight: 600 }}>Sidharth Nair</a> & <a href="https://github.com/Trinidaddy111" target="_blank" rel="noopener" style=${{ color: "inherit", fontWeight: 600 }}>Trinidad Laguardia</a>, two CS students.</span><a href="https://github.com/sidharthnair7/ChuteGuard" target="_blank" rel="noopener" style=${{ color: "inherit", fontWeight: 600 }}>Open source on GitHub ↗</a></footer>
   </main></div>`;
 }
