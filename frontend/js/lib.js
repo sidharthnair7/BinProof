@@ -26,7 +26,7 @@ export const Icon = ({ kind }) => kind === "ok"
   : html`<b style=${{ fontSize: 22, color: "#fff" }}>?</b>`;
 
 export const Logo = () => html`<svg width="46" height="46" viewBox="0 0 48 48" aria-hidden="true">
-  <defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3b5bfd"/><stop offset="1" stop-color="#7c3aed"/></linearGradient></defs><rect x="1" y="1" width="46" height="46" rx="13" fill="url(#lg)"/>
+  <defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#476b3f"/><stop offset="1" stop-color="#a87845"/></linearGradient></defs><rect x="1" y="1" width="46" height="46" rx="13" fill="url(#lg)"/>
   <path d="M15 17h18l-2 19a3 3 0 0 1-3 2.7h-8A3 3 0 0 1 17 36z" fill="none" stroke="#fff" stroke-width="2.4" stroke-linejoin="round"/>
   <path d="M13 17h22M20 17v-3h8v3" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/>
   <path d="M19.5 27.5l3 3 6-6.5" fill="none" stroke="#a5f3fc" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
@@ -95,29 +95,23 @@ export const Rise = ({ children, d = 0, className = "", style, now = false }) =>
     onViewportEnter=${() => setSeen(true)} transition=${{ ...spring, duration: .9, delay: d }}>${children}<//>`;
 };
 
-// The background: a fine grid revealed only around the pointer, and a ring that trails it.
-// Everything moves with transforms and CSS variables, so it stays smooth.
+// The background: a faint dot field revealed only around the pointer, trailing it softly. The real cursor stays.
+// It moves with a CSS variable, so it stays smooth.
 export function Pointer() {
-  const ring = useRef(null), dot = useRef(null), grid = useRef(null);
+  const grid = useRef(null);
   useEffect(() => {
     if (matchMedia("(pointer: coarse)").matches) return;
-    const m = { x: innerWidth / 2, y: innerHeight / 3, rx: innerWidth / 2, ry: innerHeight / 3, gx: innerWidth / 2, gy: innerHeight / 3, s: 1, ts: 1 };
+    const m = { x: innerWidth / 2, y: innerHeight / 3, gx: innerWidth / 2, gy: innerHeight / 3 };
     let raf, shown = false;
     const move = (e) => { m.x = e.clientX; m.y = e.clientY;
-      const hot = e.target.closest?.("button, a, label.btn, input, select, textarea");
-      m.ts = hot ? 1.9 : 1;
-      if (!shown) { shown = true; ring.current.style.opacity = 1; dot.current.style.opacity = 1; } };
+      if (!shown) { shown = true; grid.current.classList.add("on"); } };
     const tick = () => {
-      m.rx += (m.x - m.rx) * .16; m.ry += (m.y - m.ry) * .16; m.gx += (m.x - m.gx) * .08; m.gy += (m.y - m.gy) * .08; m.s += (m.ts - m.s) * .18;
-      ring.current.style.transform = `translate3d(${m.rx - 18}px, ${m.ry - 18}px, 0) scale(${m.s})`;
-      dot.current.style.transform = `translate3d(${m.x - 3}px, ${m.y - 3}px, 0)`;
+      m.gx += (m.x - m.gx) * .08; m.gy += (m.y - m.gy) * .08;
       grid.current.style.setProperty("--mx", m.gx + "px"); grid.current.style.setProperty("--my", m.gy + "px");
       raf = requestAnimationFrame(tick);
     };
     addEventListener("mousemove", move, { passive: true }); raf = requestAnimationFrame(tick);
     return () => { cancelAnimationFrame(raf); removeEventListener("mousemove", move); };
   }, []);
-  return html`<div>
-    <div ref=${grid} className="gridfx" aria-hidden="true"></div>
-    <div ref=${ring} className="cring" aria-hidden="true"></div><div ref=${dot} className="cdot" aria-hidden="true"></div></div>`;
+  return html`<div><div ref=${grid} className="gridfx" aria-hidden="true"></div></div>`;
 }
