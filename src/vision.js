@@ -9,25 +9,44 @@ const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 const MODEL = PROVIDER === "gemini" ? GEMINI_MODEL : OLLAMA_MODEL;
 const REVIEW_BELOW = 0.6; // verdicts under this confidence go to a person, never straight to a score
 
-// Demo rules for a residential blue (recycling) bin. Kept here, not in the model, so they can be
-// changed per municipality and quoted in the README.
-const BLUE_BIN_RULES = `ACCEPTED in the blue recycling bin (if empty and reasonably clean):
-paper, newspaper, flattened cardboard, paper cups and cartons, plastic bottles and rigid plastic
-containers, metal cans and foil, glass bottles and jars.
-CONTAMINATION (does not belong): food scraps and organics, greasy or food-soiled paper or
-cardboard, containers with food or liquid left in them, plastic bags and film, styrofoam,
-textiles, electronics and batteries, diapers, general garbage.`;
+// The model only says what it sees. The rules decide. Tested Oct 24: asked to judge directly, the
+// model let a plastic bag in as a "paper bag", rejected paper cups the rules accept, and reported
+// 100% confidence every time. So the verdict comes from this table, not from the model's opinion.
+const ACCEPTED = {
+  paper: "Paper goes in the blue bin.",
+  cardboard: "Clean cardboard goes in the blue bin.",
+  paper_cup: "Paper cups go in the blue bin when empty.",
+  carton: "Cartons go in the blue bin when empty.",
+  rigid_plastic: "Rigid plastic bottles and containers go in the blue bin.",
+  metal: "Metal cans and foil go in the blue bin.",
+  glass: "Glass bottles and jars go in the blue bin.",
+};
+const REJECTED = {
+  plastic_film: "Plastic bags and film tangle the sorting machines. They don't belong in the blue bin.",
+  organics: "Food and organics go in the green bin, not the blue bin.",
+  styrofoam: "Styrofoam doesn't belong in the blue bin.",
+  textile: "Clothes and fabric don't belong in the blue bin.",
+  electronics: "Electronics and batteries need a drop-off depot, not the blue bin.",
+  garbage: "This is garbage, not recycling.",
+};
+const DIRTY_REASON = "It still has food or liquid in it, which contaminates the load. Empty it first.";
 
-const PROMPT = `You are the camera inside a residential BLUE recycling bin. Look at the item being
-put in and decide whether it belongs.
-${BLUE_BIN_RULES}
-If no single item is clearly visible, say so with a low confidence.
-Reply with JSON only:
-{"item": short name of the item,
- "category": one of "paper","cardboard","plastic","metal","glass","carton","organics","film","styrofoam","garbage","hazardous","unknown",
- "contaminated": true if it does NOT belong in the blue bin as shown,
- "reason": one short sentence a resident would understand,
- "confidence": number from 0 to 1}`;
+// Rules as text, for the README and anyone checking what the bin enforces.
+const BLUE_BIN_RULES = `ACCEPTED (empty and clean): ${Object.keys(ACCEPTED).join(", ")}.
+REJECTED: ${Object.keys(REJECTED).join(", ")}; anything with food or liquid left in it.`;
+
+const MATERIALS = [...Object.keys(ACCEPTED), ...Object.keys(REJECTED), "unknown"];
+
+const PROMPT = `You are a camera looking at one item someone is about to throw away.
+Describe only what you can see. Do not decide where it goes.
+First look closely: is it thin flexible plastic film (a bag or wrap), or paper? Is it food or a peel?
+Reply with JSON only, in this order:
+{"what_i_see": one sentence describing the object, its material and its condition,
+ "item": short name of the item,
+ "material": one of ${MATERIALS.map((m) => `"${m}"`).join(",")},
+ "has_food_or_liquid": true if food, grease or liquid is visibly left on or in it,
+ "clearly_visible": true only if one item fills a good part of the picture,
+ "confidence": number from 0 to 1 for how sure you are of the material}`;
 
 async function askOllama(imageBase64) {
   const res = await fetch(`${OLLAMA_URL}/api/chat`, {
@@ -64,14 +83,23 @@ async function classify(imageBase64) {
   const raw = PROVIDER === "gemini" ? await askGemini(imageBase64) : await askOllama(imageBase64);
   let v;
   try { v = JSON.parse(raw.replace(/^```(json)?|```$/g, "").trim()); } catch { v = {}; }
+  const material = MATERIALS.includes(v.material) ? v.material : "unknown";
+  const dirty = Boolean(v.has_food_or_liquid) && material in ACCEPTED;
+  const contaminated = material in REJECTED || dirty;
+  // The model's own confidence is not trusted alone: an unknown material or an unclear picture
+  // also goes to a person.
   const confidence = Math.max(0, Math.min(1, Number(v.confidence) || 0));
+  const needsReview = material === "unknown" || v.clearly_visible === false || confidence < REVIEW_BELOW;
+  const reason = needsReview ? "The bin isn't sure what this is, so a person will check it."
+    : dirty ? DIRTY_REASON : (REJECTED[material] || ACCEPTED[material]);
   return {
     item: String(v.item || "unknown item").slice(0, 80),
-    category: String(v.category || "unknown").toLowerCase().slice(0, 20),
-    contaminated: Boolean(v.contaminated),
-    reason: String(v.reason || "").slice(0, 200),
+    category: material,
+    contaminated,
+    reason,
+    seen: String(v.what_i_see || "").slice(0, 240),
     confidence,
-    needsReview: confidence < REVIEW_BELOW,
+    needsReview,
     model: MODEL,
     onDevice: PROVIDER !== "gemini",
     ms: Date.now() - started,

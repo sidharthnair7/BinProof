@@ -24,6 +24,7 @@ process.env.BINPROOF_LOCAL = "1";
 for (const k of ["BINPROOF_RPC", "BUILDING_KEY", "FACILITY_KEY", "BINPROOF_CONTRACT"]) delete process.env[k];
 
 (async () => {
+  fs.mkdirSync(DATA, { recursive: true });
   const old = path.join(ROOT, "deployment.json");
   if (fs.existsSync(old)) fs.renameSync(old, path.join(DATA, `${Date.now()}-deployment.json.old`));
   for (const f of ["events.json", "batches.json"]) {

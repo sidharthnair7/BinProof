@@ -31,7 +31,7 @@ flowchart LR
     HUMAN --> EV
     EV --> TREE[Merkle tree per pickup]
   end
-  subgraph Chain["BinProof contract (Base Sepolia)"]
+  subgraph Chain["BinProof contract (EVM: local chain or Base Sepolia)"]
     COMMIT[commitBatch<br/>root, items, contaminated, model]
     MEAS[reportMeasurement<br/>facility's own key]
     REC{bin vs facility<br/>within 10 points?}
@@ -94,7 +94,7 @@ Open http://localhost:3030. `npm start` starts a local chain, deploys the contra
 
 **Testnet (Base Sepolia):** `npm run wallets` makes two testnet-only wallets in `.env`. Fund the building wallet with Base Sepolia test ETH, then `npm run deploy:testnet`. Set `BINPROOF_VISION=gemini` and `GEMINI_API_KEY` to use Gemini, and `npm run serve`.
 
-**Hosted:** [`render.yaml`](render.yaml) deploys the web app on Render. Secrets go in the Render dashboard.
+**Hosted demo:** [`render.yaml`](render.yaml) deploys the web app on Render's free tier. It runs its own local chain inside the service and deploys the contract on start, so it needs no testnet funds; the trade-off is that its chain resets when the service restarts and has no public explorer. The only secret is `GEMINI_API_KEY`, set in the Render dashboard.
 
 ## Honest notes
 

@@ -1,28 +1,26 @@
-# Render blueprint for the hosted demo. Secrets (GEMINI_API_KEY, BUILDING_KEY, FACILITY_KEY,
-# BINPROOF_CONTRACT) are set in the Render dashboard, never in this file.
+# Render blueprint for the hosted demo. It runs its own local chain inside the service (no
+# testnet funds needed), deploys the contract on start, and uses Gemini for the vision verdict.
+# The only secret, GEMINI_API_KEY, is set in the Render dashboard, never in this file.
 services:
   - type: web
     name: binproof
     runtime: node
     plan: free
     buildCommand: npm ci && npx hardhat compile
-    startCommand: node server.js
+    startCommand: node scripts/host.js
     envVars:
       - key: NODE_VERSION
         value: 22.12.0
       - key: BINPROOF_VISION
         value: gemini
-      - key: BINPROOF_SEED_ON_START
-        value: "1"
+      - key: GEMINI_API_KEY
+        sync: false
+      # Optional: set all four to serve against Base Sepolia instead of the built-in chain.
       - key: BINPROOF_RPC
         value: https://sepolia.base.org
-      - key: BINPROOF_CHAIN_ID
-        value: "84532"
-      - key: GEMINI_API_KEY
+      - key: BINPROOF_CONTRACT
         sync: false
       - key: BUILDING_KEY
         sync: false
       - key: FACILITY_KEY
-        sync: false
-      - key: BINPROOF_CONTRACT
         sync: false
