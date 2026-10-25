@@ -53,20 +53,31 @@ public class ApiController {
 
     /** The bin: a photo comes in, the verdict and the event go out. The photo stays on this device. */
     @PostMapping("/dispose")
-    public Map<String, Object> dispose(@RequestBody Map<String, String> body) throws Exception {
-        String unit = body.get("unit"), image = body.get("image");
+    public Map<String, Object> dispose(@RequestBody Map<String, Object> body) throws Exception {
+        String unit = (String) body.get("unit"), image = (String) body.get("image");
         if (unit == null || image == null) throw new IllegalArgumentException("unit and image are required");
         String b64 = image.replaceFirst("^data:image/\\w+;base64,", "");
         String sha = ledger.saveImage(Base64.getDecoder().decode(b64), true);
         Map<String, Object> verdict = vision.classify(b64);
-        Map<String, Object> event = ledger.addEvent(unit.length() > 20 ? unit.substring(0, 20) : unit, sha, verdict, false);
+        // The chute: which floor, which stream button, and the sorter's sensors (simulated until built).
+        String stream = String.valueOf(body.getOrDefault("stream", "RECYCLING")).toUpperCase();
+        if (!List.of("RECYCLING", "GARBAGE", "ORGANICS").contains(stream)) throw new IllegalArgumentException("stream must be RECYCLING, GARBAGE or ORGANICS");
+        int floor = Integer.parseInt(String.valueOf(body.getOrDefault("floor", "12")));
+        double metal = Double.parseDouble(String.valueOf(body.getOrDefault("metal", "0")));
+        double weightKg = Double.parseDouble(String.valueOf(body.getOrDefault("weightKg", "1.2")));
+        Map<String, Object> d = Vision.decide(verdict, stream, metal, weightKg);
+        verdict.putAll(d);
+        Map<String, Object> chute = new LinkedHashMap<>();
+        chute.put("floor", floor); chute.put("stream", stream); chute.put("detected", verdict.get("detected")); chute.put("route", d.get("route"));
+        chute.put("signals", Map.of("camera", "live", "metal", metal, "metalSource", "simulated", "weightKg", weightKg, "weightSource", "simulated"));
+        Map<String, Object> event = ledger.addEvent(unit.length() > 20 ? unit.substring(0, 20) : unit, sha, verdict, false, chute);
         return Map.of("event", event, "verdict", verdict);
     }
 
     /** A person settles low-confidence verdicts before they can count against anyone. */
     @PostMapping("/review/{eventId}")
     public Map<String, Object> review(@PathVariable String eventId, @RequestBody Map<String, Object> body) throws Exception {
-        return ledger.review(eventId, Boolean.TRUE.equals(body.get("contaminated")));
+        return ledger.review(eventId, Boolean.TRUE.equals(body.get("contaminated")), Boolean.TRUE.equals(body.get("divert")));
     }
 
     /** Pickup: close open events into a batch and commit its Merkle root, signed by the building. */

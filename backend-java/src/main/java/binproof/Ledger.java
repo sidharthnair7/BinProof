@@ -20,6 +20,8 @@ import java.util.*;
  */
 @Service
 public class Ledger {
+    // Routes where the sorter sent the drop out of the recycling stream; they never join a recycling pickup.
+    static final Set<String> LEFT_RECYCLING = Set.of("diverted", "to_organics");
     private final ObjectMapper json = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
     private final Path data, events, batches, images;
     private final String salt = Optional.ofNullable(System.getenv("BINPROOF_SALT")).orElse("demo-building-salt-change-me");
@@ -54,6 +56,11 @@ public class Ledger {
     }
 
     public synchronized Map<String, Object> addEvent(String unit, String imageSha256, Map<String, Object> verdict, boolean seeded) throws Exception {
+        return addEvent(unit, imageSha256, verdict, seeded, Map.of());
+    }
+
+    /** chute: floor, stream, detected, route, signals (each with its source: camera:live or simulated). */
+    public synchronized Map<String, Object> addEvent(String unit, String imageSha256, Map<String, Object> verdict, boolean seeded, Map<String, Object> chute) throws Exception {
         List<Map<String, Object>> all = events();
         Map<String, Object> e = new LinkedHashMap<>();
         e.put("eventId", "ev-" + System.currentTimeMillis() + "-" + HexFormat.of().formatHex(random.generateSeed(3)));
@@ -70,16 +77,21 @@ public class Ledger {
         e.put("reason", verdict.get("reason"));
         e.put("needsReview", Boolean.TRUE.equals(verdict.get("needsReview")));
         e.put("batchId", null);
+        e.putAll(chute);
         all.add(e);
         write(events, all);
         return e;
     }
 
-    public synchronized Map<String, Object> review(String eventId, boolean contaminated) throws Exception {
+    public synchronized Map<String, Object> review(String eventId, boolean contaminated) throws Exception { return review(eventId, contaminated, false); }
+
+    /** The superintendent settles a drop from the review tote: recycling (clean or not), or divert to garbage. */
+    public synchronized Map<String, Object> review(String eventId, boolean contaminated, boolean divert) throws Exception {
         List<Map<String, Object>> all = events();
         Map<String, Object> e = all.stream().filter(x -> eventId.equals(x.get("eventId"))).findFirst().orElseThrow(() -> new IllegalArgumentException("unknown event"));
         if (e.get("batchId") != null) throw new IllegalArgumentException("already picked up");
         e.put("contaminated", contaminated); e.put("needsReview", false); e.put("humanReviewed", true);
+        if (e.get("stream") != null) e.put("route", divert ? "diverted" : "RECYCLING".equals(e.get("stream")) ? "recycling" : ((String) e.get("stream")).toLowerCase());
         write(events, all);
         return e;
     }
@@ -93,7 +105,9 @@ public class Ledger {
     /** Close every open, reviewed event into one pickup and build its tree. */
     public synchronized Map<String, Object> closeBatch() throws Exception {
         List<Map<String, Object>> all = events();
-        List<Map<String, Object>> open = all.stream().filter(e -> e.get("batchId") == null && !Boolean.TRUE.equals(e.get("needsReview"))).toList();
+        // A pickup is the recycling stream's load: drops that landed in recycling (not diverted to garbage or organics, not in review).
+        List<Map<String, Object>> open = all.stream().filter(e -> e.get("batchId") == null && !Boolean.TRUE.equals(e.get("needsReview"))
+                && (e.get("stream") == null || "RECYCLING".equals(e.get("stream"))) && !LEFT_RECYCLING.contains(e.get("route"))).toList();
         if (open.isEmpty()) throw new IllegalArgumentException("no reviewed events waiting for pickup");
         List<Map<String, Object>> bs = batches();
         int number = bs.size() + 1;

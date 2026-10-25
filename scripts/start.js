@@ -1,5 +1,5 @@
-// One command for a fresh local demo: start a Hardhat chain, deploy BinProof, seed a building's
-// worth of labelled events, and serve the app. A new chain means old records no longer match,
+// One command for a fresh local chain: start Hardhat, deploy BinProof, and seed a building's
+// worth of labelled events. The app itself is the Spring Boot backend in backend-java/. A new chain means old records no longer match,
 // so the previous data folder is set aside, not deleted.
 const { spawn } = require("child_process");
 const fs = require("fs");
@@ -41,5 +41,6 @@ for (const k of ["BINPROOF_RPC", "BUILDING_KEY", "FACILITY_KEY", "BINPROOF_CONTR
   const d = await chain.deploy();
   console.log(`BinProof deployed at ${d.address} (building ${d.building}, facility ${d.facility})`);
   require("./seed").seed();
-  require("../server");
+  console.log("Chain ready on http://127.0.0.1:8545 with the contract deployed and seeded drops from other floors.");
+  console.log("Now start the Spring Boot backend: cd backend-java && java -jar target/binproof-backend-1.0.0.jar (then open http://localhost:8080)");
 })().catch((err) => { console.error(err); process.exit(1); });

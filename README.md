@@ -1,81 +1,113 @@
 # BinProof
 
-**Recycling contamination, recorded at the bin, checked by the facility, claimable once.**
+**BinProof clips onto the chute sorter a tower already has. Every drop checked, every pickup verified by the facility, claimable once.**
 
 IEEE ClimateChain Global Hackathon 2026 · **Track: Sustainable Supply Chains** ("Recycling traceability systems", "Circular economy incentive platforms").
 
 ## The problem
 
-- Toronto's audited Blue Box contamination in 2025 was **35.4%**, which Circular Materials calls "one of the highest rates in Ontario" ([City of Toronto, 2026](https://www.toronto.ca/legdocs/mmis/2026/ie/bgrd/backgroundfile-286376.pdf)).
-- In apartments and condos, hundreds of units share one bin. Toronto's multi-unit diversion was **27%** against **65%** for houses, and it's "harder to hold residents accountable" ([Waste Dive](https://www.wastedive.com/news/toronto-targets-multi-unit-buildings-to-reach-70-diversion/425002/)). Truck cameras that trace contamination stop at the address, and a tower is one address.
-- Ontario's producers now pay for recycling and trade recovered tonnes as credits, but in December 2025 the Auditor General found the regulator "has not begun to enforce" audits of the performance data, and nobody clearly owns verifying the credits ([Auditor General of Ontario](https://www.auditor.on.ca/en/content/annualreports/arreports/en25/pa_RPRA_en25.pdf), sections 4.2.1 and 4.2.2). Every number is reported by someone who is paid by it.
-- Where cities have tied waste to people, they've done it by watching them: bag inspections, photos of carts, postcards. Residents push back ("Trash is really personal").
+- In Toronto towers, residents don't carry recycling to a bin. They drop it down the **garbage chute** on their floor. The Toronto Green Standard requires new towers to have a sorting system, and "a single chute with a tri-sorter" is one of the approved options: a button at each floor's chute door picks Recycling, Garbage or Organics, and a sorter at the bottom routes the drop ([TGS v3, SW 1.1](https://www.toronto.ca/city-government/planning-development/official-plan-guidelines/toronto-green-standard/toronto-green-standard-version-3/mid-to-high-rise-residential-all-non-residential-version-3/solid-waste-for-mid-to-high-rise-residential-all-non-residential/)).
+- Apartments recycle far less than houses. The City's 2025 diversion rate was **26.3%** for multi-residential buildings and **60.3%** for single-family homes ([City of Toronto, solid waste reports](https://www.toronto.ca/services-payments/recycling-organics-garbage/solid-waste-reports/)).
+- Toronto's audited Blue Box contamination in 2025 was **35.4%**, which Circular Materials calls "one of the highest rates in Ontario" (Circular Materials data in a [City of Toronto committee file, 2026](https://www.toronto.ca/legdocs/mmis/2026/ie/bgrd/backgroundfile-286376.pdf)).
+- Since January 2026, producers pay for that recycling through Circular Materials. In December 2025, Ontario's Auditor General found the regulator "has not begun to enforce" audits of the performance data ([Auditor General of Ontario](https://www.auditor.on.ca/en/content/annualreports/arreports/en25/pa_RPRA_en25.pdf), sections 4.2.1 and 4.2.2). Every number is reported by someone who is paid by it.
+- A tower is one address. Nobody can see which floor contaminated the load, so nothing changes. Nobody checks what happens after the button.
 
 ## What BinProof does
 
-1. **The bin sees.** A camera in a shared blue bin photographs each item. A vision model decides if it belongs and how sure it is. Low-confidence verdicts go to a person and never count against anyone until they're checked.
-2. **Only a fingerprint is kept.** Each disposal becomes an event: the unit as a salted hash (never a name), the photo's SHA-256 (never the photo), the verdict, the confidence and the model that made it.
-3. **The building commits each pickup.** A pickup closes the open events into a Merkle tree, and the building's key commits the root, the counts and the model ID on chain.
-4. **The facility checks it, with its own key.** The recycling facility signs the contamination it measured in that load. The contract compares the two: within 10 points, the pickup is **Verified**; otherwise it's **Flagged**.
-5. **One verified pickup, one claim.** A diversion claim can be issued once per verified pickup. A second claim is refused by the contract (`AlreadyClaimed`), so the same tonnes can't be counted twice.
-6. **Anyone can check a receipt.** A resident's receipt holds their event and a Merkle proof. The contract's `verifyEvent` confirms it's inside the committed pickup without revealing anyone else's items. Change one field and it fails.
+1. **At the chute door (floor module).** The resident taps a fob and presses the stream button. BinProof logs the floor, the stream they picked, and a pseudonymous code for the unit.
+2. **At the bottom of the chute (sorter module).** A camera checks the drop against the stream that was picked. A vision model describes it (closed opaque bag, clear bag or loose item, and what it's made of), and a rules table decides. A metal sensor and a weight flap add evidence.
+3. **Sorted, diverted, or sent to review.** The drop goes to the stream that was picked, gets diverted (a black bag **to garbage**, visible food **to organics**), or goes to the **review tote** for the superintendent. Every drop is recorded with its floor, stream, what the camera saw, and where it went. The photo stays on the device; only its SHA-256 is kept.
+4. **The building commits each pickup.** A pickup closes the recycling drops into a Merkle tree, and the building's key commits the root, the counts and the model ID on chain.
+5. **The facility checks it, with its own key.** The recycling facility signs the contamination it measured in that load. Within 10 points of the building's number, the pickup is **Verified**; otherwise it's **Flagged**.
+6. **One verified pickup, one claim.** A diversion claim can be issued once per verified pickup. A second claim is refused by the contract (`AlreadyClaimed`), so the same tonnes can't be counted twice.
+7. **Anyone can check a receipt.** A receipt holds one drop and its Merkle proof. The contract's `verifyEvent` confirms it's inside the committed pickup without revealing anyone else's drops. Change one field and it fails.
+
+### The black bag question
+
+**We don't need to see inside the bag.** Circular Materials tells Toronto residents "Do not bag your recyclables" ([Circular Materials, Toronto](https://www.circularmaterials.ca/toronto)), so **a closed opaque bag in the recycling stream is itself the contamination.** The sorter diverts it to garbage and the floor gets a notice. Organics may go down in a bag, so the bag rule applies only to recycling.
+
+What we can't see is recyclables hidden in black bags sent down as garbage. We don't claim to measure that. We measure how clean the recycling stream is, which is the number producers pay for.
+
+### The compost question
+
+Food the camera can see in the recycling stream is diverted to organics and recorded against the floor. Food it can't see, like a yogurt cup that still has yogurt in it or grease inside a closed box, passes the camera. **The facility's measurement catches it**: the facility measures the real load, so hidden food makes its number higher than the building's. If the gap is more than 10 points, the pickup is **Flagged** and nothing can be claimed. The camera catches what it can see. The facility catches the rest. If they disagree, nothing gets claimed.
+
+| Stream picked | What the sorter sees | Route |
+|---|---|---|
+| Garbage | anything | garbage |
+| Recycling | closed opaque bag | **diverted to garbage**, floor notice |
+| Recycling | not sure, or low confidence | **review tote** |
+| Recycling | food it can see | **diverted to organics**, recorded against the floor |
+| Recycling | loose or clear-bag item | recycling (contamination recorded against the floor if it doesn't belong, including a container with food left in it) |
+| Organics | metal hit, or unusually heavy | **review tote** |
+| Organics | anything else | organics |
+
+The model describes, the rules decide. The table lives in [`Vision.java`](backend-java/src/main/java/binproof/Vision.java) (`decide`).
+
+### Related work
+
+AI at the bin already sells. [Oscar Sort](https://intuitiveai.ca/oscar-sort) (Intuitive AI) retrofits existing public bins with a camera and a screen that tell people which bin their item goes in. That works where a person stands at a bin. In a tower, nobody stands at a screen: they drop it down the chute on their floor. BinProof goes in the chute, checks what actually landed, and has a second party sign the numbers.
 
 ## Architecture
 
 ```mermaid
-flowchart LR
-  subgraph Building["Building (off chain)"]
-    CAM[Camera in the blue bin] --> AI[Vision model<br/>verdict + confidence]
-    AI -->|confidence < 0.6| HUMAN[Person reviews]
-    AI --> EV[(Events: unit hash,<br/>photo SHA-256, verdict, model)]
-    HUMAN --> EV
-    EV --> TREE[Merkle tree per pickup]
+flowchart TB
+  subgraph Floor["Floor module, at each floor's chute door"]
+    FOB["Fob tap<br/>pseudonymous unit code"] --> BTN["Stream button<br/>Recycling / Garbage / Organics"]
   end
-  subgraph Chain["BinProof contract (EVM: local chain or Base Sepolia)"]
-    COMMIT[commitBatch<br/>root, items, contaminated, model]
-    MEAS[reportMeasurement<br/>facility's own key]
-    REC{bin vs facility<br/>within 10 points?}
-    CLAIM[issueClaim<br/>once per pickup]
-    VERIFY[verifyEvent<br/>receipt + proof]
+  BTN --> CHUTE["The tower's existing chute"]
+  subgraph Sorter["Sorter module, at the bottom of the chute"]
+    CAM["Camera<br/>opaque bag, clear bag or loose item"] --> RULES{"Rules<br/>stream picked vs what the camera saw"}
+    SENS["Metal sensor and weight flap"] --> RULES
+    RULES -->|"matches"| ROUTE["Sort to the stream picked"]
+    RULES -->|"black bag in recycling"| DIVERT["Divert to garbage<br/>notice to the floor"]
+    RULES -->|"food in recycling"| TOORG["Divert to organics<br/>recorded against the floor"]
+    RULES -->|"not sure"| REVIEW["Review tote<br/>the superintendent decides"]
   end
-  TREE -->|building key| COMMIT
-  FAC[Recycling facility audit sample] -->|facility key| MEAS
-  COMMIT --> REC
-  MEAS --> REC
-  REC -->|yes| CLAIM
-  REC -->|no| FLAG[Flagged: no claim]
-  RES[Resident's receipt] --> VERIFY
+  CHUTE --> CAM
+  ROUTE --> EVENT[("Event<br/>floor, stream, detected, route, photo SHA-256")]
+  DIVERT --> EVENT
+  TOORG --> EVENT
+  REVIEW --> EVENT
+  EVENT --> TREE["Merkle tree of the recycling pickup"]
+  subgraph Chain["BinProof contract"]
+    COMMIT["commitBatch<br/>root, items, contaminated, model"]
+    MEAS["reportMeasurement"]
+    CHECK{"Building vs facility<br/>within 10 points?"}
+    CLAIM["issueClaim<br/>once per pickup"]
+    FLAG["Flagged<br/>no claim"]
+    VERIFY["verifyEvent<br/>receipt + proof"]
+  end
+  TREE -->|"building key"| COMMIT
+  FAC["Recycling facility audit sample"] -->|"facility key"| MEAS
+  COMMIT --> CHECK
+  MEAS --> CHECK
+  CHECK -->|"yes"| CLAIM
+  CHECK -->|"no"| FLAG
+  RECEIPT["Resident's receipt"] --> VERIFY
 ```
 
 | Piece | File |
 |---|---|
 | Contract | [`contracts/BinProof.sol`](contracts/BinProof.sol) |
-| Vision verdict (on-device Ollama, or Gemini for the hosted demo) | [`src/vision.js`](src/vision.js) |
-| Events, Merkle batching, receipts | [`src/ledger.js`](src/ledger.js) |
-| Chain calls and the two signers | [`src/chain.js`](src/chain.js) |
-| Web app and API | [`server.js`](server.js) (Node) or [`backend-java/`](backend-java) (Spring Boot), [`frontend/index.html`](frontend/index.html) |
+| Backend (Spring Boot): the API | [`ApiController.java`](backend-java/src/main/java/binproof/ApiController.java) |
+| Vision verdict and the routing rules | [`Vision.java`](backend-java/src/main/java/binproof/Vision.java) |
+| Drops, pickups, review, receipts | [`Ledger.java`](backend-java/src/main/java/binproof/Ledger.java) |
+| OpenZeppelin-compatible Merkle trees | [`Merkle.java`](backend-java/src/main/java/binproof/Merkle.java) |
+| Chain calls and the two signers (web3j) | [`Chain.java`](backend-java/src/main/java/binproof/Chain.java) |
+| Website (React) | [`frontend/index.html`](frontend/index.html) |
+| Local chain, deploy, seeded drops | [`scripts/`](scripts), [`hardhat.config.js`](hardhat.config.js) |
 
-## Security and data integrity
+## Hardware: software first, the kit comes next
 
-| Data | Where it lives |
-|---|---|
-| The photo | On the bin's device only. The hosted demo sends it to Gemini for the verdict and discards it. |
-| Photo SHA-256, verdict, confidence, model, time | Off-chain event, and inside the pickup's Merkle root |
-| Unit | A salted hash. The building holds the salt; outsiders can't reverse it. |
-| Merkle root, item count, contamination count, model ID | On chain, signed by the building key |
-| Facility measurement | On chain, signed by the facility key |
-| Building totals | Public. Individual items are visible only to the resident holding the receipt. |
+We're two broke college students, so we built the software part of the product first, not the hardware. We tested the software with a laptop webcam and real items. In the demo, the floor panel, the metal sensor and the weight flap are simulated inputs, and the page labels them that way.
 
-- **Two keys, two parties.** The contract accepts a batch only from the building's address and a measurement only from the facility's. In the hosted demo, one server holds both keys so judges can play both roles. In a real deployment, the facility signs from its own system.
-- **The chain makes the AI's claim tamper-evident, not correct.** That's why the model ID and confidence are recorded, low-confidence verdicts go to a person, and an independent measurement decides whether anything can be claimed.
-- **What's never recorded:** faces (the camera points into the bin), names, photos on any public system.
-- **Known limits:** people can dump without scanning; the camera sees the top of an item, not inside a bag; a building and a facility that collude can still lie together; a facility's figure is extrapolated from a sample; a unit hash is still personal data to the building that holds the salt.
+The kit is two small modules that clip onto the chute a tower already has. No new chute, no new bins.
 
-## Hardware: software first, the bin comes next
+- **Floor module:** a fob reader at each floor's chute door that logs the stream button press. Many towers already have the button. Cost per floor: [NEEDS SOURCE].
+- **Sorter module:** a camera and a small computer at the bottom of the chute, with an inductive metal sensor and a load cell under a catch flap.
 
-We're two broke college students, so we built the software part of the product first, not the bin. BinProof runs on any camera that can see what goes into a shared bin. We tested it with a webcam and real items.
-
-For anyone who wants to build one, a reference parts list (not built; PiShop.ca prices, Oct 25, 2026, before tax):
+Reference parts for the sorter's computer and camera (not built; PiShop.ca prices, Oct 25, 2026, before tax):
 
 | Part | CAD |
 |---|---|
@@ -84,25 +116,41 @@ For anyone who wants to build one, a reference parts list (not built; PiShop.ca 
 | 27 W power supply | 16.95 |
 | Active cooler | 7.15 |
 | 32 GB microSD | 28.95 |
-| MG996R servo (lid) | 8.65 |
-| **Electronics total** | **347.65** |
+| **Subtotal** | **339.00** |
+| Inductive metal sensor, load cell, catch flap, fob readers | [NEEDS SOURCE] |
 
-Not included: the lid or tray, mounting, wiring, a separate servo supply. About 3 W idle and 8.8 W at full load.
+Honest limit: Google's own Raspberry Pi 5 numbers for Gemma 4 E4B are about 20 seconds to the first token, for text alone. A drop falls in about a second. So in the chute, a small, fast classifier would route the drop, and the vision model would write the record afterwards.
 
-Honest limit: Google's own Raspberry Pi 5 numbers for Gemma 4 E4B are about 20 seconds to the first token, for text alone. So on this board a small, fast classifier would decide whether the lid opens, and the vision model would write the record afterwards.
+## Security and data integrity
+
+| Data | Where it lives |
+|---|---|
+| The photo | On the sorter's device only. Only its SHA-256 is recorded. |
+| Unit | Pseudonymous: a salted hash of the fob. The building holds the salt. Residents get floor-level feedback. |
+| Floor, stream, what the camera saw, route, sensor readings and where each reading came from | Off-chain event, and inside the pickup's Merkle root |
+| Merkle root, item count, contamination count, model ID | On chain, signed by the building key |
+| Facility measurement | On chain, signed by the facility key |
+| Building totals | Public. A single drop is visible only to whoever holds its receipt. |
+
+- **Two keys, two parties.** The contract accepts a batch only from the building's address and a measurement only from the facility's. In the demo, one backend holds both keys so judges can play both roles. In a real deployment, the facility signs from its own system.
+- **The chain makes the AI's claim tamper-evident, not correct.** That's why the model ID and confidence are recorded, unsure drops go to a person, and an independent measurement decides whether anything can be claimed.
+- **The camera sees waste, not people.** It points at the bottom of the chute. No faces, no names, no photos on any public system.
+- **Known limits:** food hidden inside a container passes the camera (the facility's measurement catches it, and the pickup flags); people can skip the chute and carry bags down; without fobs, attribution is floor-level only; we can't see recyclables hidden inside garbage bags; a building and a facility that collude can still lie together; the facility's figure is extrapolated from a sample; a unit hash is still personal data to the building that holds the salt; v1 needs a tower with a stream choice (a tri-sorter or separate chutes). How many Toronto towers have one: [NEEDS SOURCE].
 
 ## Impact projection (assumptions stated)
 
 These are assumptions to make the scale concrete, not measured results from BinProof.
 
-- A 300-unit tower, about 5 kg of blue-bin material per unit a week: about **1.5 tonnes a week**.
+- A 300-unit tower, about 5 kg of recycling-stream material per unit a week: about **1.5 tonnes a week**.
 - At Toronto's 35.4%, about **530 kg a week** of that is contamination.
-- Feedback at the source has cut contamination by about **23%** against a control group before (East Lansing's truck-camera postcards, [The Sun](https://www.the-sun.com/news/12727498/artificial-intelligence-garbage-trucks-technology-east-lansing-michigan/)). Applied here, about **120 kg a week** less contamination per tower, roughly 6 tonnes a year, without photographing anyone.
+- Feedback at the source has cut contamination by about **23%** against a control group before (East Lansing's truck-camera postcards, [The Sun](https://www.the-sun.com/news/12727498/artificial-intelligence-garbage-trucks-technology-east-lansing-michigan/)). Applied here, about **120 kg a week** less contamination per tower, roughly 6 tonnes a year, with floor-level feedback instead of photos of anyone.
 - The verification side scales with the producer system: every verified pickup is one claim that can't be counted twice.
 
 ## Run it
 
-**Local (on-device model, local chain):** needs Node 20.12+ and [Ollama](https://ollama.com) with a vision model (`ollama pull gemma4:e4b-it-qat`).
+Needs Node 20.12+, Java 21+, Maven, and [Ollama](https://ollama.com) with a vision model (`ollama pull gemma4:e4b-it-qat`).
+
+**1. The local chain.** Starts a Hardhat chain, deploys the contract, and adds seeded drops from other floors (labelled **seeded** everywhere):
 
 ```bash
 npm install
@@ -110,9 +158,7 @@ npx hardhat compile
 npm start
 ```
 
-Open http://localhost:3030. `npm start` starts a local chain, deploys the contract, adds 24 seeded events from other units (labelled **seeded** everywhere), and serves the app.
-
-**Spring Boot backend (Java):** the same API and the same web page, in [`backend-java/`](backend-java). Start the local chain and contract first with `npm start` (it also seeds the demo), then in another terminal:
+**2. The backend (Spring Boot), in a second terminal:**
 
 ```bash
 cd backend-java
@@ -120,15 +166,14 @@ mvn -DskipTests package
 java -jar target/binproof-backend-1.0.0.jar
 ```
 
-Open http://localhost:8080. It reads the same `data/` folder and `deployment.json`, builds the same OpenZeppelin-compatible Merkle trees (receipts from either backend verify on chain), and signs as the building and the facility with web3j.
+Open http://localhost:8080. Spring Boot serves the website from `frontend/` and the API under `/api`.
 
-**Testnet (Base Sepolia):** `npm run wallets` makes two testnet-only wallets in `.env`. Fund the building wallet with Base Sepolia test ETH, then `npm run deploy:testnet`. Set `BINPROOF_VISION=gemini` and `GEMINI_API_KEY` to use Gemini, and `npm run serve`.
-
-**Hosted demo:** [`render.yaml`](render.yaml) deploys the web app on Render's free tier. It runs its own local chain inside the service and deploys the contract on start, so it needs no testnet funds; the trade-off is that its chain resets when the service restarts and has no public explorer. The only secret is `GEMINI_API_KEY`, set in the Render dashboard.
+**Testnet (Base Sepolia):** `npm run wallets` makes two testnet-only wallets in `.env`. Fund the building wallet with Base Sepolia test ETH and run `npm run deploy:testnet`. Then start the backend with `BUILDING_KEY` and `FACILITY_KEY` set to those wallets' keys, and `--binproof.rpc=https://sepolia.base.org`.
 
 ## Honest notes
 
-- Seeded events stand in for a building's other residents. They're marked `seeded: true` in the Merkle leaf itself, on the page, and in this README.
+- Seeded drops stand in for a building's other residents. They're marked `seeded: true` in the Merkle leaf itself, on the page, and in this README.
+- The floor panel, metal sensor and weight flap are simulated in the demo. The camera's verdict is real, from a vision model running on the laptop.
 - The facility measurement in the demo is typed in, standing in for an audit sample.
 - The 10-point tolerance is a demo setting, fixed at deploy time.
 

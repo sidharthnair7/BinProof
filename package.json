@@ -7,8 +7,7 @@
     "start": "node scripts/start.js",
     "compile": "hardhat compile",
     "wallets": "node scripts/wallets.js",
-    "deploy:testnet": "node scripts/deploy-testnet.js",
-    "serve": "node server.js"
+    "deploy:testnet": "node scripts/deploy-testnet.js"
   },
   "keywords": [],
   "author": "",

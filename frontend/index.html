@@ -227,78 +227,117 @@ function Ring({ pct }) {
 const Card = ({ children, className = "", i = 0 }) => html`<${motion.div} className=${"card " + className}
   initial=${{ opacity: 0, y: 14, filter: "blur(4px)" }} animate=${{ opacity: 1, y: 0, filter: "blur(0px)" }} transition=${{ ...spring, delay: i * .08 }}>${children}<//>`;
 
-function Verdict({ v, eventSha, onDevice, loading }) {
+// Where a drop went, in the resident's words.
+const ROUTE = {
+  recycling: (c) => [c ? "bad" : "ok", c ? "In recycling, but it doesn't belong" : "Sorted to recycling"],
+  diverted: () => ["bad", "Diverted to garbage"],
+  to_organics: () => ["bad", "Diverted to organics"],
+  review: () => ["warn", "Sent to the review tote"],
+  garbage: () => ["ok", "Sorted to garbage"],
+  organics: () => ["ok", "Sorted to organics"],
+};
+// Routes where the sorter sent the drop out of the recycling stream (same list as Ledger.LEFT_RECYCLING).
+const LEFT_RECYCLING = ["diverted", "to_organics"];
+const routeOf = (v) => (ROUTE[v.route] || ((c) => [c ? "bad" : "ok", c ? "Doesn't belong" : "Belongs"]))(v.contaminated);
+const STREAMS = [["RECYCLING", "Recycling", "#3b5bfd"], ["GARBAGE", "Garbage", "#5b6478"], ["ORGANICS", "Organics", "#2f9e6a"]];
+
+function Verdict({ v, eventSha, loading }) {
   if (loading) return html`<${motion.div} className="verdict warn" initial=${{ opacity: 0 }} animate=${{ opacity: 1 }}>
     <div className="badge"><${motion.div} style=${{ width: 18, height: 18, border: "3px solid #fff", borderTopColor: "transparent", borderRadius: "50%" }}
       animate=${{ rotate: 360 }} transition=${{ repeat: Infinity, duration: .8, ease: "linear" }}/></div>
-    <div><b>Looking…</b><small>The model is describing the item. The rules will decide.</small></div><//>`;
-  if (!v) return html`<p className="hint">Hold an item up to the camera and press <b>Put item in bin</b>.</p>`;
-  const kind = v.needsReview ? "warn" : v.contaminated ? "bad" : "ok";
-  const head = v.needsReview ? "Not sure: a person will check" : v.contaminated ? "Doesn't belong in the blue bin" : "Belongs in the blue bin";
+    <div><b>Looking…</b><small>The sorter camera describes the drop. The rules decide where it goes.</small></div><//>`;
+  if (!v) return html`<p className="hint">Tap a fob, press a stream button, then <b>Drop it down the chute</b>.</p>`;
+  const [kind, head] = routeOf(v);
   return html`<${motion.div} key=${eventSha} className=${"verdict " + kind} initial=${{ opacity: 0, scale: .94, y: 10 }} animate=${{ opacity: 1, scale: 1, y: 0 }} transition=${spring}>
-    <${motion.div} className="badge" initial=${{ scale: 0 }} animate=${{ scale: 1 }} transition=${{ ...spring, delay: .05 }}><${Icon} kind=${kind}/><//>
+    <${motion.div} className="badge" initial=${{ scale: 0 }} animate=${{ scale: 1 }} transition=${{ ...spring, delay: .05 }}><${Icon} kind=${kind === "warn" ? "warn" : kind}/><//>
     <div style=${{ flex: 1 }}><b>${head}</b><small>${v.item} · ${v.reason}</small>
       <div className="conf"><${motion.i} initial=${{ width: 0 }} animate=${{ width: (v.confidence * 100) + "%" }} transition=${{ duration: .8 }}/></div>
-      <div className="mono" style=${{ marginTop: 8 }}>material ${v.category} · confidence ${(v.confidence * 100).toFixed(0)}% · ${v.model} · ${(v.ms / 1000).toFixed(1)}s<br/>photo sha256 ${short(eventSha)} ${v.onDevice ? "· photo kept on this device" : "· photo discarded after the verdict"}</div>
+      <div className="mono" style=${{ marginTop: 8 }}>camera saw ${v.detected || v.category} (${v.bag || "loose"}) · confidence ${(v.confidence * 100).toFixed(0)}% · ${v.model} · ${(v.ms / 1000).toFixed(1)}s<br/>photo sha256 ${short(eventSha)} · photo kept on the sorter's device</div>
     </div><//>`;
 }
 
+const Sim = ({ label, children }) => html`<div style=${{ marginTop: 12 }}><div style=${{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+  <label className="f" style=${{ margin: 0 }}>${label}</label><span className="tag" style=${{ background: "#eef1f6", borderStyle: "solid" }}>SIMULATED</span></div>${children}</div>`;
+
 function BinTab({ state, refresh, onDisposed }) {
   const video = useRef(null); const [cam, setCam] = useState(false); const [still, setStill] = useState(null);
-  const [unit, setUnit] = useState("1203"); const [busy, setBusy] = useState(false); const [res, setRes] = useState(null); const [err, setErr] = useState("");
+  const [unit, setUnit] = useState("1203"); const [floor, setFloor] = useState(12); const [stream, setStream] = useState("RECYCLING");
+  const [metal, setMetal] = useState(0); const [weight, setWeight] = useState(1.2);
+  const [busy, setBusy] = useState(false); const [res, setRes] = useState(null); const [err, setErr] = useState("");
   useEffect(() => { navigator.mediaDevices?.getUserMedia({ video: { facingMode: "environment" } })
     .then((s) => { if (video.current) { video.current.srcObject = s; setCam(true); } }).catch(() => setCam(false)); }, []);
   const toJpeg = (src, w, h) => { const k = Math.min(1, 1024 / Math.max(w, h)); const c = document.createElement("canvas");
     c.width = Math.round(w * k); c.height = Math.round(h * k); c.getContext("2d").drawImage(src, 0, 0, c.width, c.height); return c.toDataURL("image/jpeg", .85); };
   const dispose = async (image) => {
     setStill(image); setBusy(true); setErr("");
-    try { const r = await api("/api/dispose", { unit, image }); setRes(r); onDisposed(r.event.eventId); }
+    try { const r = await api("/api/dispose", { unit, floor, stream, metal, weightKg: weight, image }); setRes(r); onDisposed(r.event.eventId); }
     catch (e) { setErr(e.message); } setBusy(false); refresh();
   };
   const snap = () => { const v = video.current; if (v?.videoWidth) dispose(toJpeg(v, v.videoWidth, v.videoHeight)); };
   const file = (e) => { const f = e.target.files[0]; if (!f) return; const img = new Image();
     img.onload = () => { dispose(toJpeg(img, img.naturalWidth, img.naturalHeight)); URL.revokeObjectURL(img.src); }; img.src = URL.createObjectURL(f); e.target.value = ""; };
-  const open = state.events.filter((e) => !e.batchId).length;
+  const open = state.events.filter((e) => !e.batchId && (e.stream || "RECYCLING") === "RECYCLING" && !LEFT_RECYCLING.includes(e.route)).length;
+  const review = state.events.filter((e) => e.needsReview);
   return html`<div className="grid">
-    <${Card} i=${0}><h2>Camera inside the blue bin</h2><p className="hint" id="privacy">${state.onDevice
-      ? `Judged by ${state.model} on this device. Only the photo's SHA-256 is recorded.`
-      : `Hosted demo: the photo goes to ${state.model} and is discarded. Only its SHA-256 is recorded.`}</p>
-      <div className="cam">
+    <${Card} i=${0}><h2>The chute, floor by floor</h2>
+      <p className="hint">At the chute door: the resident's fob and the stream button. At the bottom: the sorter camera.</p>
+      <div className="row" style=${{ marginTop: 0 }}>
+        <div style=${{ flex: 1, minWidth: 120 }}><label className="f" htmlFor="unit">Fob tap (unit)</label><input id="unit" value=${unit} onInput=${(e) => setUnit(e.target.value)}/></div>
+        <div style=${{ width: 110 }}><label className="f" htmlFor="floor">Floor</label><input id="floor" type="number" min="1" max="60" value=${floor} onInput=${(e) => setFloor(Number(e.target.value) || 1)}/></div>
+      </div>
+      <label className="f">Stream button</label>
+      <div className="row" style=${{ marginTop: 0 }} id="streams">${STREAMS.map(([id, label, c]) => html`<button key=${id} data-stream=${id}
+        className=${"btn " + (stream === id ? "green" : "alt")} style=${stream === id ? { background: c } : {}} onClick=${() => setStream(id)}>${label}</button>`)}</div>
+      <div className="cam" style=${{ marginTop: 14 }}>
         <video ref=${video} autoPlay playsInline muted style=${{ display: still || !cam ? "none" : "block" }}></video>
-        ${still && html`<img src=${still} alt="item"/>`}
+        ${still && html`<img src=${still} alt="drop"/>`}
         ${!still && !cam && html`<div className="empty">No camera here: use a photo instead.</div>`}
         ${busy && html`<${motion.div} className="scan" initial=${{ top: "0%" }} animate=${{ top: ["0%", "97%", "0%"] }} transition=${{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}/>`}
-        ${[{ top: 12, left: 12, borderRight: 0, borderBottom: 0 }, { top: 12, right: 12, borderLeft: 0, borderBottom: 0 },
-           { bottom: 12, left: 12, borderRight: 0, borderTop: 0 }, { bottom: 12, right: 12, borderLeft: 0, borderTop: 0 }]
-          .map((s, k) => html`<div key=${k} className="corner" style=${s}></div>`)}
+        <div style=${{ position: "absolute", left: 12, top: 10, color: "#fff", font: '600 12px "Inter Tight"', opacity: .8 }}>Sorter camera · floor ${floor} chute</div>
       </div>
-      <label className="f" htmlFor="unit">Unit (from the resident's fob or QR card)</label>
-      <input id="unit" value=${unit} onInput=${(e) => setUnit(e.target.value)}/>
+      <${Sim} label=${`Metal detector: ${metal.toFixed(2)}`}><input type="range" id="metal" min="0" max="1" step="0.05" value=${metal} onInput=${(e) => setMetal(Number(e.target.value))} style=${{ width: "100%", padding: 0 }}/><//>
+      <${Sim} label=${`Weight on the catch flap: ${weight.toFixed(1)} kg`}><input type="range" id="weight" min="0" max="8" step="0.1" value=${weight} onInput=${(e) => setWeight(Number(e.target.value))} style=${{ width: "100%", padding: 0 }}/><//>
       <div className="row">
-        <button className="btn green" id="snap" disabled=${busy} onClick=${snap}>Put item in bin</button>
+        <button className="btn green" id="snap" disabled=${busy} onClick=${snap}>Drop it down the chute</button>
         <label className="btn alt" style=${{ margin: 0 }}>Use a photo<input type="file" id="file" accept="image/*" className="hide" onChange=${file}/></label>
-      </div><//>
-    <${Card} i=${1}><h2>What the bin decided</h2><p className="hint">The model describes. A rules table decides. Unsure goes to a person.</p>
+      </div>
+      <p className="hint" style=${{ marginTop: 12, marginBottom: 0, fontSize: 13 }}>Hardware not built. The floor panel and the sorter's sensors are simulated inputs set by the presenter; the camera verdict is real.</p><//>
+    <${Card} i=${1}><h2>What the sorter decided</h2><p className="hint">The camera describes. The stream button and the rules decide. Unsure goes to a person.</p>
       <div id="verdict">${err ? html`<div className="verdict bad"><div className="badge"><${Icon} kind="bad"/></div><div><b>Error</b><small>${err}</small></div></div>`
         : html`<${Verdict} v=${res?.verdict} eventSha=${res?.event.imageSha256} loading=${busy}/>`}</div>
-      <h2 style=${{ marginTop: 22 }}>Recent items <span className="tag">${open} waiting for pickup</span></h2>
-      <div className="list" id="events"><${AnimatePresence} initial=${false}>${state.events.slice(0, 8).map((e) => html`
+      ${review.length > 0 && html`<h2 style=${{ marginTop: 22 }}>Review tote <span className="tag">${review.length} for the superintendent</span></h2>
+        <div className="list">${review.slice(0, 4).map((e) => html`<div key=${e.eventId} className="item" style=${{ gridTemplateColumns: "1fr auto" }}>
+          <div><b>Floor ${e.floor ?? "?"}</b> · ${e.stream || ""} · ${e.item}</div>
+          <div><button className="btn alt" style=${{ padding: "4px 9px", fontSize: 13 }} onClick=${async () => { await api(`/api/review/${e.eventId}`, { contaminated: false }); refresh(); }}>It's fine</button>
+            <button className="btn alt" style=${{ padding: "4px 9px", fontSize: 13, marginLeft: 4 }} onClick=${async () => { await api(`/api/review/${e.eventId}`, { contaminated: true }); refresh(); }}>Contamination</button>
+            <button className="btn alt" style=${{ padding: "4px 9px", fontSize: 13, marginLeft: 4 }} onClick=${async () => { await api(`/api/review/${e.eventId}`, { contaminated: true, divert: true }); refresh(); }}>Divert</button></div></div>`)}</div>`}
+      <h2 style=${{ marginTop: 22 }}>Recent drops <span className="tag">${open} in recycling, waiting for pickup</span></h2>
+      <div className="list" id="events"><${AnimatePresence} initial=${false}>${state.events.slice(0, 8).map((e) => { const [k, h] = routeOf(e); return html`
         <${motion.div} layout key=${e.eventId} className="item" initial=${{ opacity: 0, x: -24 }} animate=${{ opacity: 1, x: 0 }} exit=${{ opacity: 0 }} transition=${spring}>
-          <div><b>${e.unit}</b>${e.seeded && html`<span className="tag">seeded</span>`}</div>
-          <div>${e.item}</div>
-          <div>${e.needsReview ? html`<span className="pill warn">needs a person</span>
-              <button className="btn alt" style=${{ padding: "4px 9px", fontSize: 13, marginLeft: 6 }} onClick=${async () => { await api(`/api/review/${e.eventId}`, { contaminated: false }); refresh(); }}>Belongs</button>
-              <button className="btn alt" style=${{ padding: "4px 9px", fontSize: 13, marginLeft: 4 }} onClick=${async () => { await api(`/api/review/${e.eventId}`, { contaminated: true }); refresh(); }}>Doesn't</button>`
-            : e.contaminated ? html`<span className="pill bad">contamination</span>` : html`<span className="pill ok">belongs</span>`}
-            ${e.batchId && html`<span className="tag">picked up</span>`}</div><//>`)}<//></div><//>
+          <div><b>${e.floor ? "Fl " + e.floor : e.unit}</b>${e.seeded && html`<span className="tag">seeded</span>`}</div>
+          <div>${e.item}<div className="mono" style=${{ fontSize: 11 }}>${e.stream || ""}${e.detected ? " · saw " + e.detected : ""}</div></div>
+          <div><span className=${"pill " + k}>${h}</span>${e.batchId && html`<span className="tag">picked up</span>`}</div><//>`; })}<//></div><//>
   </div>`;
+}
+
+// Contamination by floor: the view a property manager acts on.
+function FloorsCard({ state }) {
+  const drops = state.events.filter((e) => e.floor && (e.stream || "RECYCLING") === "RECYCLING");
+  const floors = {}; drops.forEach((e) => { const f = floors[e.floor] ||= { n: 0, bad: 0, bags: 0 }; f.n++; if (e.contaminated) f.bad++; if (e.route === "diverted") f.bags++; });
+  const rows = Object.entries(floors).map(([f, v]) => [Number(f), v]).sort((a, b) => b[1].bad / b[1].n - a[1].bad / a[1].n).slice(0, 8);
+  const bags = drops.filter((e) => e.route === "diverted").length; const food = drops.filter((e) => e.route === "to_organics").length;
+  return html`<${Card} i=${2}><h2 id="floors">By floor</h2><p className="hint">Recycling-stream drops per floor. Residents get floor-level feedback; no one is named.</p>
+    <div className="row" style=${{ marginTop: 0, marginBottom: 10 }}><span className="pill bad">${bags} black bags diverted</span><span className="pill bad">${food} food drops sent to organics</span><span className="pill warn">${state.events.filter((e) => e.needsReview).length} in review</span></div>
+    ${rows.map(([f, v]) => { const pct = 100 * v.bad / v.n; return html`<div key=${f} style=${{ display: "grid", gridTemplateColumns: "64px 1fr 56px", gap: 10, alignItems: "center", margin: "7px 0" }}>
+      <b>Floor ${f}</b><div style=${{ height: 10, borderRadius: 6, background: "#eef1f6", overflow: "hidden" }}><${motion.div} initial=${{ width: 0 }} animate=${{ width: pct + "%" }} transition=${{ duration: .8 }}
+        style=${{ height: "100%", background: pct > 30 ? "#e5484d" : pct > 0 ? "#f5b942" : "#2fbf7f" }}/></div><span className="mono">${pct.toFixed(0)}%</span></div>`; })}<//>`;
 }
 
 const statusClass = (s) => s === "Verified" ? "ok" : s === "Flagged" ? "bad" : "warn";
 
 function BuildingTab({ state, refresh }) {
   const [busy, setBusy] = useState(false); const [msg, setMsg] = useState(""); const [claimMsg, setClaimMsg] = useState({});
-  const open = state.events.filter((e) => !e.batchId && !e.needsReview); const dirty = open.filter((e) => e.contaminated).length;
+  const open = state.events.filter((e) => !e.batchId && !e.needsReview && (e.stream || "RECYCLING") === "RECYCLING" && !LEFT_RECYCLING.includes(e.route)); const dirty = open.filter((e) => e.contaminated).length;
   const pct = open.length ? 100 * dirty / open.length : 0;
   const pickup = async () => { setBusy(true); setMsg("Committing…");
     try { const b = await api("/api/pickup", {}); setMsg(`Pickup #${b.number}: ${b.items} items sealed · root ${short(b.root)} · tx ${short(b.tx.commit)}`); }
@@ -309,10 +348,10 @@ function BuildingTab({ state, refresh }) {
     refresh(); };
   const d = state.deployment;
   return html`<div className="grid">
-    <${Card} i=${0}><h2>This building's blue bin</h2><p className="hint">Items waiting for the next pickup.</p>
+    <${Card} i=${0}><h2>This building's recycling</h2><p className="hint">Recycling drops waiting for the next pickup.</p>
       <div className="gauge"><${Ring} pct=${pct}/><div><div className="bignum" style=${{ color: pct > 20 ? "var(--red)" : "var(--green)" }}><${Count} value=${pct} suffix="%"/></div>
         <div className="hint" style=${{ margin: 0 }}>contamination in ${open.length} items</div></div></div>
-      <p className="hint" style=${{ marginTop: 14 }}>Toronto's audited Blue Box contamination in 2025 was <b>35.4%</b>. In a condo tower, hundreds of units share one bin.</p>
+      <p className="hint" style=${{ marginTop: 14 }}>Toronto's audited Blue Box contamination in 2025 was <b>35.4%</b>. In a tower, hundreds of units share one chute.</p>
       <div className="row"><button className="btn green" id="pickup" disabled=${busy} onClick=${pickup}>Pickup: commit batch on chain</button></div>
       <${AnimatePresence}>${msg && html`<${motion.div} key=${msg} className="mono" initial=${{ opacity: 0, y: 6 }} animate=${{ opacity: 1, y: 0 }} style=${{ marginTop: 10 }}>${msg}<//>`}<//><//>
     <${Card} i=${1}><h2>How a pickup becomes a claim</h2><p className="hint">Two parties, two keys, one contract.</p>
@@ -320,6 +359,7 @@ function BuildingTab({ state, refresh }) {
         .map((s, k) => html`<${motion.div} key=${k} initial=${{ opacity: 0, x: 16 }} animate=${{ opacity: 1, x: 0 }} transition=${{ ...spring, delay: .15 + k * .08 }}
           style=${{ display: "flex", gap: 12, alignItems: "center", padding: "10px 0", borderBottom: k < 3 ? "1px solid var(--line)" : 0 }}>
           <span className="pill ok" style=${{ minWidth: 30, justifyContent: "center" }}>${k + 1}</span><span>${s}</span><//>`)}<//>
+    <${FloorsCard} state=${state}/>
     <${Card} className="span2" i=${2}><h2>Pickups</h2><p className="hint">${d ? `Contract ${short(d.address)} · building ${short(d.building)} · facility ${short(d.facility)} · tolerance ${d.toleranceBps / 100} points` : "Contract not deployed."}</p>
       <div className="list" id="batches"><${AnimatePresence} initial=${false}>${state.batches.length ? state.batches.slice().reverse().map((b) => {
         const cm = claimMsg[b.batchId];
@@ -354,7 +394,7 @@ function FacilityTab({ state, refresh }) {
     <${Card} i=${0}><h2>Recycling facility audit</h2><p className="hint">The facility samples the load and signs its own measurement with its own key.</p>
       <label className="f" htmlFor="batchSel">Pickup</label>
       <select id="batchSel" value=${current?.batchId || ""} onChange=${(e) => setSel(e.target.value)}>
-        ${waiting.length ? waiting.map((b) => html`<option key=${b.batchId} value=${b.batchId}>Pickup #${b.number}: bin says ${b.binPct.toFixed(1)}%</option>`)
+        ${waiting.length ? waiting.map((b) => html`<option key=${b.batchId} value=${b.batchId}>Pickup #${b.number}: building says ${b.binPct.toFixed(1)}%</option>`)
           : html`<option value="">No pickups waiting for a measurement</option>`}</select>
       <label className="f" htmlFor="pct">Measured contamination (%)</label>
       <input id="pct" type="number" min="0" max="100" step="0.1" value=${pct} onInput=${(e) => setPct(e.target.value)}/>
@@ -362,13 +402,13 @@ function FacilityTab({ state, refresh }) {
       <${AnimatePresence} mode="wait">${out && html`<${motion.div} key=${out.tx || out.error} className=${"verdict " + (out.status === "Verified" ? "ok" : "bad")} style=${{ marginTop: 16 }}
         initial=${{ opacity: 0, scale: .95 }} animate=${{ opacity: 1, scale: 1 }} transition=${spring}>
         <div className="badge"><${Icon} kind=${out.status === "Verified" ? "ok" : "bad"}/></div>
-        <div><b>${out.status === "Verified" ? "Verified: the bin and the facility agree" : out.status === "Flagged" ? "Flagged: the bin and the facility disagree" : "Refused"}</b>
+        <div><b>${out.status === "Verified" ? "Verified: the building and the facility agree" : out.status === "Flagged" ? "Flagged: the building and the facility disagree" : "Refused"}</b>
           <small>${out.status === "Verified" ? "One diversion claim can now be issued for this pickup." : out.status === "Flagged" ? "No claim can be issued. Someone has to look at this load." : out.error}</small>
           ${out.tx && html`<div className="mono" style=${{ marginTop: 6 }}>⛓ tx ${short(out.tx)}</div>`}</div><//>`}<//><//>
-    <${Card} i=${1}><h2>Do they agree?</h2><p className="hint">Within ${tol} points of the bin's own record, the contract verifies the pickup.</p>
+    <${Card} i=${1}><h2>Do they agree?</h2><p className="hint">Within ${tol} points of the building's own record, the contract verifies the pickup.</p>
       <div className="compare">
         <${motion.div} className="band" animate=${{ left: x(bin - tol), width: `${2 * tol}%` }} transition=${spring}/>
-        <${motion.div} className="mark" style=${{ background: "#0d1b2e" }} animate=${{ left: x(bin) }} transition=${spring}><span>bin ${bin.toFixed(1)}%</span><//>
+        <${motion.div} className="mark" style=${{ background: "#0d1b2e" }} animate=${{ left: x(bin) }} transition=${spring}><span>building ${bin.toFixed(1)}%</span><//>
         <${motion.div} className="mark" style=${{ background: Math.abs(fac - bin) <= tol ? "#1c9a63" : "#d93d42", top: 30 }} animate=${{ left: x(fac) }} transition=${spring}>
           <span style=${{ color: Math.abs(fac - bin) <= tol ? "#1c9a63" : "#d93d42" }}>facility ${fac.toFixed(1)}%</span><//>
       </div>
@@ -680,7 +720,7 @@ function SealPage({ state }) {
         : html`<${motion.div} key=${item.i} initial=${{ opacity: 0, y: 10 }} animate=${{ opacity: 1, y: 0 }} transition=${spring}>
           <div className="ticket" style=${{ gridTemplateColumns: "1fr" }}>
             <div><span>Item</span><div style=${{ fontWeight: 700, fontSize: 18 }}>${val("category")}${val("seeded") ? html`<span className="tag">seeded</span>` : null}</div></div>
-            <div className=${tampered ? "changed" : ""}><span>Belongs in the blue bin${tampered ? " · changed" : ""}</span>
+            <div className=${tampered ? "changed" : ""}><span>Belongs in recycling${tampered ? " · changed" : ""}</span>
               <div><span className=${"pill " + (shownContaminated ? "bad" : "ok")}>${shownContaminated ? "No, contamination" : "Yes"}</span></div></div>
             <div><span>AI confidence</span><div className="mono">${(val("confidenceBps") / 100).toFixed(0)}% · ${val("model")}</div></div>
             <div><span>Photo fingerprint</span><div className="mono">${short(val("imageSha256"))}</div></div>
@@ -729,10 +769,10 @@ function Bale3D({ batch, onPick, pickProp, brokenProp, onSealed }) {
       el.appendChild(renderer.domElement); renderer.domElement.style.cursor = "grab";
       const scene = new THREE.Scene(); scene.background = new THREE.Color(0x16181d);
       const pm = new THREE.PMREMGenerator(renderer); scene.environment = pm.fromScene(new RoomEnvironment(), .04).texture;
-      const camera = new THREE.PerspectiveCamera(25, W() / H(), .1, 200); camera.position.set(10.5, 8.2, 14.5);
+      const camera = new THREE.PerspectiveCamera(25, W() / H(), .1, 200); camera.position.set(16, 13, 26);
       const controls = new OrbitControls(camera, renderer.domElement);
       Object.assign(controls, { enableDamping: true, dampingFactor: .07, enableZoom: false, enablePan: false, autoRotate: true, autoRotateSpeed: .35, minPolarAngle: .35, maxPolarAngle: 1.45 });
-      controls.target.set(0, 1.4, 0);
+      controls.target.set(0, Math.min(9, (5.2 + tree.leaves.length * 1.08 + 2) / 2), 0);
       const sun = new THREE.DirectionalLight(0xffffff, 2.4); sun.position.set(6, 14, 8); sun.castShadow = true;
       sun.shadow.mapSize.set(2048, 2048); Object.assign(sun.shadow.camera, { left: -8, right: 8, top: 8, bottom: -8 }); sun.shadow.radius = 6; scene.add(sun);
       scene.add(new THREE.HemisphereLight(0xdfe6ff, 0x20232b, .5));
@@ -755,10 +795,18 @@ function Bale3D({ batch, onPick, pickProp, brokenProp, onSealed }) {
         const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), glass); m.position.set(x, y, z); binGroup.add(m);
         const e = new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry), new THREE.LineBasicMaterial({ color: 0x9fb4ff, transparent: true, opacity: .35 })); e.position.copy(m.position); binGroup.add(e); });
 
+      const SH = .72, TOP = 5.2 + n * 1.08 + 2;
+      [[SH * 2, TOP - BH, .04, 0, (TOP + BH) / 2, SH], [SH * 2, TOP - BH, .04, 0, (TOP + BH) / 2, -SH], [.04, TOP - BH, SH * 2, SH, (TOP + BH) / 2, 0], [.04, TOP - BH, SH * 2, -SH, (TOP + BH) / 2, 0]].forEach(([w, h, d, x, y, z]) => {
+        const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), glass); m.position.set(x, y, z); binGroup.add(m); });
+      for (let fy = BH + 1.6, fl = 1; fy < TOP; fy += 2.2, fl++) {
+        const door = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(SH * 2 + .2, .5, SH * 2 + .2)), new THREE.LineBasicMaterial({ color: 0x9fb4ff, transparent: true, opacity: .55 }));
+        door.position.set(0, fy, 0); binGroup.add(door); }
       // Physics.
       const world = new CANNON.World({ gravity: new CANNON.Vec3(0, -14, 0) }); world.allowSleep = true;
       const ground = new CANNON.Body({ mass: 0, shape: new CANNON.Plane() }); ground.quaternion.setFromEuler(-Math.PI / 2, 0, 0); world.addBody(ground);
       [[BW / 2, BH, .1, 0, BH, BD / 2 + .1], [BW / 2, BH, .1, 0, BH, -BD / 2 - .1], [.1, BH, BD / 2, BW / 2 + .1, BH, 0], [.1, BH, BD / 2, -BW / 2 - .1, BH, 0]].forEach(([x, y, z, px, py, pz]) => {
+        const b = new CANNON.Body({ mass: 0, shape: new CANNON.Box(new CANNON.Vec3(x, y, z)) }); b.position.set(px, py, pz); world.addBody(b); });
+      [[SH + .1, (TOP - BH) / 2, .05, 0, (TOP + BH) / 2, SH + .05], [SH + .1, (TOP - BH) / 2, .05, 0, (TOP + BH) / 2, -SH - .05], [.05, (TOP - BH) / 2, SH + .1, SH + .05, (TOP + BH) / 2, 0], [.05, (TOP - BH) / 2, SH + .1, -SH - .05, (TOP + BH) / 2, 0]].forEach(([x, y, z, px, py, pz]) => {
         const b = new CANNON.Body({ mass: 0, shape: new CANNON.Box(new CANNON.Vec3(x, y, z)) }); b.position.set(px, py, pz); world.addBody(b); });
       const pusher = new CANNON.Body({ mass: 0, type: CANNON.Body.KINEMATIC, shape: new CANNON.Sphere(.7) }); pusher.position.set(0, -10, 0); world.addBody(pusher);
 
@@ -766,7 +814,7 @@ function Bale3D({ batch, onPick, pickProp, brokenProp, onSealed }) {
       const mat = new THREE.MeshStandardMaterial({ roughness: .62, metalness: 0, envMapIntensity: .6 });
       const mesh = new THREE.InstancedMesh(geo, mat, n); mesh.castShadow = true; mesh.receiveShadow = true; scene.add(mesh);
       const bodies = leaves.map((l, k) => { const b = new CANNON.Body({ mass: 1, shape: new CANNON.Box(new CANNON.Vec3(.5, .5, .5)), linearDamping: .05, angularDamping: .1 });
-        const a = k * 2.399; b.position.set(Math.cos(a) * 1.3, 6 + k * .55, Math.sin(a) * 1.1); b.quaternion.setFromEuler(k * .7, k * 1.3, k * .4);
+        b.position.set(Math.sin(k * 1.7) * .12, 5.2 + k * 1.08, Math.cos(k * 1.3) * .12); b.quaternion.setFromEuler(k * .7, k * 1.3, k * .4);
         b.sleepSpeedLimit = .2; world.addBody(b); mesh.setColorAt(k, new THREE.Color(kind(l.value))); return b; });
       mesh.instanceColor.needsUpdate = true;
 
@@ -791,7 +839,7 @@ function Bale3D({ batch, onPick, pickProp, brokenProp, onSealed }) {
 
       const ease = (x) => { x = Math.min(1, Math.max(0, x)); return x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; };
       const dummy = new THREE.Object3D(), start = performance.now(); let phase = "drop", pressAt = 0, sealedSent = false;
-      const from = [], fromQ = []; const DROP = 4.6;
+      const from = [], fromQ = []; const DROP = 3.2 + n * .2; const camFrom = new THREE.Vector3(), tgtFrom = new THREE.Vector3();
       let picked = null, brokenNow = false;
       ctl.current.set = (treeIndex, broken) => { picked = treeIndex === null ? null : leaves.findIndex((l) => l.treeIndex === treeIndex); brokenNow = broken; };
       // Cursor: push the pile during the drop; click a block afterwards.
@@ -815,9 +863,11 @@ function Bale3D({ batch, onPick, pickProp, brokenProp, onSealed }) {
           bodies.forEach((b, k) => { dummy.position.copy(b.position); dummy.quaternion.copy(b.quaternion); dummy.scale.setScalar(1); dummy.updateMatrix(); mesh.setMatrixAt(k, dummy.matrix); });
           if (t > DROP) { phase = "press"; pressAt = t; pusher.position.set(0, -10, 0);
             bodies.forEach((b, k) => { from[k] = new THREE.Vector3().copy(b.position); fromQ[k] = new THREE.Quaternion().copy(b.quaternion); });
-            binGroup.children.forEach((c) => { c.userData.o = c.material.opacity; }); }
+            binGroup.children.forEach((c) => { c.userData.o = c.material.opacity; }); camFrom.copy(camera.position); tgtFrom.copy(controls.target); }
         } else {
           const p = t - pressAt;
+          if (p < 1.6) { const e = ease(p / 1.6); controls.target.lerpVectors(tgtFrom, new THREE.Vector3(0, 1.4, 0), e);
+            camera.position.lerpVectors(camFrom, new THREE.Vector3(10.5, 8.2, 14.5), e); }
           bodies.forEach((b, k) => { const pairDelay = (k >> 1) * .045; const e = ease((p - pairDelay) / .9);
             dummy.position.lerpVectors(from[k], slot(k), e); dummy.quaternion.slerpQuaternions(fromQ[k], new THREE.Quaternion(), e);
             if (picked === k) { const out = Math.min(1, (p - 4.2) > 0 ? 1 : 0) ; dummy.position.z += 1.05; }
@@ -879,18 +929,18 @@ function SealSandbox({ state, exit }) {
     ${batch && html`<${motion.div} key=${"t" + batch.batchId} style=${{ position: "absolute", left: 34, bottom: 40, zIndex: 5, pointerEvents: "none" }}
       initial=${{ opacity: 0, y: 14 }} animate=${{ opacity: 1, y: 0 }} transition=${{ duration: 1, ease: EASE, delay: .4 }}>
       <div className="serif" style=${{ fontSize: 64, lineHeight: 1 }}>Pickup #${batch.number}, sealed.</div>
-      <div style=${{ marginTop: 10, fontSize: 17, color: "rgba(234,240,255,.7)" }}>${batch.items} items, pressed into one fingerprint. Strapped by the building, then the facility.</div>
+      <div style=${{ marginTop: 10, fontSize: 17, color: "rgba(234,240,255,.7)" }}>${batch.items} recycling drops down the chute, pressed into one fingerprint. Strapped by the building, then the facility.</div>
       <div className="mono" style=${{ marginTop: 6, color: "rgba(234,240,255,.45)" }}>root ${short(batch.root)}</div><//>`}
     <${AnimatePresence}>${sealed && (ok || bad) && html`<${motion.div} key="stamp" style=${{ position: "absolute", left: "50%", top: 26, zIndex: 5, translateX: "-50%",
         color: ok ? "#7ff5c7" : "#ff9aa1", border: `2px solid ${ok ? "#2ee6a1" : "#ff4d5a"}`, borderRadius: 12, padding: "8px 16px", font: '800 14px "Inter Tight"', letterSpacing: ".1em", textTransform: "uppercase", background: "rgba(0,0,0,.3)" }}
       initial=${{ opacity: 0, scale: 1.8, rotate: -10 }} animate=${{ opacity: 1, scale: 1, rotate: -3 }} transition=${{ type: "spring", stiffness: 300, damping: 18 }}>${ok ? "Verified by the facility · claimable once" : "Flagged by the facility · no claim"}<//>`}<//>
-    ${!item && html`<div style=${{ position: "absolute", left: "50%", bottom: 34, transform: "translateX(-50%)", zIndex: 5, fontSize: 14, color: "rgba(234,240,255,.55)", pointerEvents: "none" }}>Push the pile with your cursor · drag to turn · click a block to pull it out · Esc to leave</div>`}
+    ${!item && html`<div style=${{ position: "absolute", left: "50%", bottom: 34, transform: "translateX(-50%)", zIndex: 5, fontSize: 14, color: "rgba(234,240,255,.55)", pointerEvents: "none" }}>Watch the chute pour · drag to turn · click a block to pull it out · Esc to leave</div>`}
     <${AnimatePresence}>${item && html`<${motion.div} key="glass" className="glass" initial=${{ opacity: 0, x: 40 }} animate=${{ opacity: 1, x: 0 }} exit=${{ opacity: 0, x: 40 }} transition=${{ duration: .55, ease: EASE }}>
       <div style=${{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><span className="serif" style=${{ fontSize: 30 }}>The receipt</span>
         <button className="ghost" style=${{ padding: "5px 11px" }} onClick=${() => setItem(null)}>✕</button></div>
       ${!receipt ? html`<p style=${{ color: "rgba(234,240,255,.6)" }}>Opening…</p>` : html`<div>
         <div className="k">Item</div><div className="v" style=${{ fontWeight: 700, fontSize: 20 }}>${val("category")}${val("seeded") ? html`<span className="tag" style=${{ color: "rgba(234,240,255,.6)", borderColor: "rgba(255,255,255,.2)" }}>seeded</span>` : null}</div>
-        <div className="k" style=${{ color: tampered ? "#ff9aa1" : undefined }}>Belongs in the blue bin${tampered ? " · changed" : ""}</div>
+        <div className="k" style=${{ color: tampered ? "#ff9aa1" : undefined }}>Belongs in recycling${tampered ? " · changed" : ""}</div>
         <div className="v"><span className=${"pill " + (shownContaminated ? "bad" : "ok")}>${shownContaminated ? "No, contamination" : "Yes"}</span></div>
         <div className="k">AI confidence</div><div className="v mono">${(val("confidenceBps") / 100).toFixed(0)}% · ${val("model")}</div>
         <div className="k">Photo fingerprint</div><div className="v mono">${short(val("imageSha256"))}</div>
@@ -916,11 +966,11 @@ function Landing({ go, state }) {
   <main className="wrap" style=${{ position: "relative", zIndex: 1 }}>
     <section className="hero">
       <div>
-        <${Rise} now=${true}><span className="eyebrow"><span className="dot"></span>Verified recycling data for multi-unit buildings</span><//>
-        <${Rise} now=${true} d=${.06}><h1 className="h1">Recycling numbers<br/>you can <em>check.</em></h1><//>
-        <${Rise} now=${true} d=${.12}><p className="lede">BinProof records contamination at the bin, has the recycling facility verify it with its own key, and lets each verified pickup be claimed exactly once. Without watching anyone.</p><//>
+        <${Rise} now=${true}><span className="eyebrow"><span className="dot"></span>A retrofit kit for the garbage chute a tower already has</span><//>
+        <${Rise} now=${true} d=${.06}><h1 className="h1">Every drop down<br/>the chute, <em>checked.</em></h1><//>
+        <${Rise} now=${true} d=${.12}><p className="lede">BinProof clips onto the chute a tower already has. It knows which stream each resident picked, checks the drop at the bottom, diverts black bags out of recycling, and turns each pickup into numbers the recycling facility can verify. Without watching anyone.</p><//>
         <${Rise} now=${true} d=${.18} className="cta">
-          <button className="btn green lg" id="openApp" onClick=${() => go("bin")}>Open the bin →</button>
+          <button className="btn green lg" id="openApp" onClick=${() => go("bin")}>Drop something down the chute →</button>
           <button className="btn alt lg" onClick=${() => go("verify")}>Verify a receipt</button><//>
       </div>
       <${Rise} now=${true} d=${.1} className="stat">
@@ -929,13 +979,13 @@ function Landing({ go, state }) {
         <div style=${{ fontSize: 18, color: "rgba(255,255,255,.85)", marginTop: 6 }}>of what went into recycling didn't belong there.</div>
         <div className="bars">${Array.from({ length: 34 }).map((_, k) => html`<${motion.i} key=${k} className=${hot.includes(k) || k % 3 === 0 ? "hot" : ""}
           initial=${{ height: 0 }} animate=${{ height: `${30 + ((k * 37) % 60)}%` }} transition=${{ delay: .4 + k * .02, ...spring }}/>`)}</div>
-        <div className="src">Audited, Circular Materials data in a City of Toronto report (2026). "One of the highest rates in Ontario."</div><//>
+        <div className="src">Audited. Circular Materials data in a City of Toronto committee file (2026). Apartments divert 26.3% of their waste; houses, 60.3%.</div><//>
     </section>
 
     <section className="section" id="how">
       <${Rise}><h2 className="h2">Three signatures. One claim.</h2><p className="lede" style=${{ marginBottom: 0 }}>Every number is signed by the party who measured it, and checked against the other.</p><//>
       <div className="steps">${[
-        ["1", "The bin sees", "A camera in the shared blue bin. The model describes the item, a rules table decides, and unsure verdicts go to a person."],
+        ["1", "The chute checks", "At the chute door, a fob and the stream button. At the bottom, a camera checks the drop against that stream. Black bags go to garbage, food goes to organics, unsure drops go to a person."],
         ["2", "The facility checks", "At pickup the building seals the list and signs it. The recycling facility signs what it measured, with its own key."],
         ["3", "Claimed once", "Within 10 points, the pickup is verified and earns exactly one claim. A second claim is refused by the contract."],
       ].map(([k, t, p], i) => html`<${Rise} key=${k} d=${i * .08} className="step"><div className="k">${k}</div><h3>${t}</h3><p>${p}</p><//>`)}</div>
@@ -946,34 +996,34 @@ function Landing({ go, state }) {
       <${Rise}><h2 className="h2">Why a blockchain,<br/>not a database?</h2>
         <p className="lede">Whoever keeps the database is paid by the numbers in it. In December 2025, Ontario's Auditor General found the regulator "has not begun to enforce" audits of the recycling data.</p><//>
       <${Rise} d=${.1} className="keys">
-        <div className="key"><b>Building key</b><span>signs what the bin saw</span></div>
+        <div className="key"><b>Building key</b><span>signs what the chute saw</span></div>
         <${motion.div} animate=${{ x: [0, 6, 0] }} transition=${{ repeat: Infinity, duration: 2 }} style=${{ fontSize: 26, color: "var(--muted)" }}>⇄<//>
         <div className="key"><b>Facility key</b><span>signs what it measured</span></div><//>
     </section>
 
 
     <section className="section split" id="hardware">
-      <${Rise}><h2 className="h2">Software first.<br/>The bin comes next.</h2>
-        <p className="lede">We're two broke college students, so we built the software part of the product first, not the bin. BinProof runs on any camera that can see what goes in.</p>
+      <${Rise}><h2 className="h2">A retrofit kit.<br/>No new chute.</h2>
+        <p className="lede">We're two broke college students, so we built the software part of the product first, not the hardware. The kit is two small modules that clip onto the chute a tower already has.</p>
         <div className="facts">${[
-          ["✓", "The camera only has to see the item. Everything else is software."],
-          ["✓", "The photo stays on the device. Only its fingerprint is kept."],
-          ["→", "Next: a small camera-and-lid unit, and a pilot with one condo building."],
+          ["1", "Floor module: a fob reader and the stream button at each floor's chute door. Many Toronto towers already have a tri-sorter button."],
+          ["2", "Sorter module: a camera and a small computer at the bottom of the chute, with a metal sensor and a weight flap."],
+          ["→", "A black bag in recycling is the contamination: recyclables shouldn't be bagged, so we don't need to see inside it."],
         ].map(([k, t], i) => html`<${Rise} key=${i} d=${i * .06} className="fact"><i>${k}</i><span>${t}</span><//>`)}</div><//>
       <${Rise} d=${.1} className="kit">
         <div className="bn">
-          <div><span className="pill ok">Built</span><ul>${["The AI that checks each item", "Private records, no photos kept", "Pickups sealed on the blockchain", "The facility's own check", "One claim per pickup", "Receipts anyone can verify"].map((t) => html`<li key=${t}>${t}</li>`)}</ul></div>
-          <div><span className="pill warn">Next</span><ul>${["The bin: camera, small computer, lid", "A pilot in one condo building", "The facility's real audit numbers"].map((t) => html`<li key=${t}>${t}</li>`)}</ul></div>
+          <div><span className="pill ok">Built</span><ul>${["The AI that checks each drop", "Private records, no photos kept", "Pickups sealed on the blockchain", "The facility's own check", "One claim per pickup", "Receipts anyone can verify"].map((t) => html`<li key=${t}>${t}</li>`)}</ul></div>
+          <div><span className="pill warn">Next</span><ul>${["The floor and sorter modules (hardware)", "A pilot in one tower with a tri-sorter", "The facility's real audit numbers"].map((t) => html`<li key=${t}>${t}</li>`)}</ul></div>
         </div><//>
     </section>
     <section className="section" id="privacy">
       <${Rise}><h2 className="h2">Accountability, without watching anyone.</h2><//>
       <div className="priv">${[
-        ["The photo stays in the bin", "The AI runs inside the bin. Only a fingerprint of the photo is kept, never the photo."],
-        ["Units are anonymous", "Each unit is a scrambled code. Only the building can match it to a unit."],
+        ["The camera sees waste, not people", "It points at the bottom of the chute. Only a fingerprint of the photo is kept, never the photo."],
+        ["Pseudonymous, not named", "A fob becomes a scrambled code. Residents get floor-level feedback; only the building can match a code to a unit."],
         ["Residents hold their receipts", "Anyone can check their own receipt, without seeing anyone else's items."],
       ].map(([b, t], i) => html`<${Rise} key=${b} d=${i * .08}><div><b>${b}</b><span>${t}</span></div><//>`)}</div>
-      <${Rise} d=${.1} className="cta" style=${{ marginTop: 34 }}><button className="btn green lg" onClick=${() => go("bin")}>Try it: put an item in the bin →</button><//>
+      <${Rise} d=${.1} className="cta" style=${{ marginTop: 34 }}><button className="btn green lg" onClick=${() => go("bin")}>Try it: drop something down the chute →</button><//>
     </section>
     <footer><span><b style=${{ color: "var(--ink)" }}>BinProof</b> · Made by Sid &amp; Trini, two CS students in Peterborough, Ontario.</span><span>Open source</span></footer>
   </main></div>`;
@@ -1006,8 +1056,8 @@ function Pointer() {
     <div ref=${ring} className="cring" aria-hidden="true"></div><div ref=${dot} className="cdot" aria-hidden="true"></div></div>`;
 }
 
-const TABS = [["bin", "The bin"], ["building", "Building & pickups"], ["facility", "Facility"], ["seal", "The Seal"], ["verify", "Verify a receipt"]];
-const SECTIONS = [["how", "How it works"], ["why", "Why blockchain"], ["hardware", "Hardware"], ["privacy", "Privacy"]];
+const TABS = [["bin", "The chute"], ["building", "Building & pickups"], ["facility", "Facility"], ["seal", "The Seal"], ["verify", "Verify a receipt"]];
+const SECTIONS = [["how", "How it works"], ["why", "Why blockchain"], ["hardware", "The kit"], ["privacy", "Privacy"]];
 const glide = (id) => { const el = document.getElementById(id); if (!el) return;
   if (window.__lenis) window.__lenis.scrollTo(el, { offset: -90, duration: 1.2 }); else window.scrollTo({ top: el.getBoundingClientRect().top + scrollY - 90, behavior: "smooth" }); };
 function App() {
@@ -1031,7 +1081,7 @@ function App() {
       <div className="brand-link" onClick=${() => setTab("home")}>
         <${motion.div} animate=${{ scale: scrolled ? .8 : 1 }} style=${{ display: "flex" }}><${Logo}/><//>
         <div><${motion.div} className="brand" animate=${{ fontSize: scrolled ? "21px" : "25px" }}>Bin<span>Proof</span><//>
-          <${AnimatePresence}>${!scrolled && html`<${motion.div} className="sub" initial=${{ opacity: 0, height: 0 }} animate=${{ opacity: 1, height: "auto" }} exit=${{ opacity: 0, height: 0 }}>Recorded at the bin. Verified by the facility. Claimable once.<//>`}<//></div></div>
+          <${AnimatePresence}>${!scrolled && html`<${motion.div} className="sub" initial=${{ opacity: 0, height: 0 }} animate=${{ opacity: 1, height: "auto" }} exit=${{ opacity: 0, height: 0 }}>Checked at the chute. Verified by the facility. Claimable once.<//>`}<//></div></div>
       <div className="grow"></div>
       ${tab === "home"
         ? html`<nav>${SECTIONS.map(([id, label]) => html`<button key=${id} className=${section === id ? "on" : ""} onClick=${() => glide(id)}>

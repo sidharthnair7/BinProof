@@ -34,7 +34,7 @@ function saveImage(imageBase64, keep = true) {
   return "0x" + sha;
 }
 
-function addEvent({ unit, imageSha256, verdict, seeded = false }) {
+function addEvent({ unit, imageSha256, verdict, seeded = false, chute = {} }) {
   const events = read(EVENTS);
   const event = {
     eventId: `ev-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`,
@@ -51,6 +51,7 @@ function addEvent({ unit, imageSha256, verdict, seeded = false }) {
     reason: verdict.reason,
     needsReview: Boolean(verdict.needsReview),
     batchId: null,
+    ...chute,
   };
   events.push(event);
   write(EVENTS, events);
