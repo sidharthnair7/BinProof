@@ -16,8 +16,10 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * The bin's eye. The model only describes what it sees; the rules table decides. Tested Oct 24: asked to
- * judge directly, the model let a plastic bag in as a "paper bag" and reported 100% confidence every time.
+ * The sorter's eye. The model only describes what it sees; the rules table decides. Tested Oct 24: asked to
+ * judge directly, the model rejected paper cups the rules accept and reported 100% confidence every time.
+ * The accepted list follows Circular Materials' Toronto list (checked Oct 25, 2026): flexible plastic
+ * packaging (chip bags, bread bags, overwrap) and foam packaging are accepted when empty and clean.
  */
 @Service
 public class Vision {
@@ -32,9 +34,9 @@ public class Vision {
         ACCEPTED.put("rigid_plastic", "Rigid plastic bottles and containers go in the blue bin.");
         ACCEPTED.put("metal", "Metal cans and foil go in the blue bin.");
         ACCEPTED.put("glass", "Glass bottles and jars go in the blue bin.");
-        REJECTED.put("plastic_film", "Plastic bags and film tangle the sorting machines. They don't belong in the blue bin.");
+        ACCEPTED.put("plastic_film", "Flexible plastic packaging (chip bags, bread bags, overwrap, snack wrappers) goes in recycling when empty.");
+        ACCEPTED.put("styrofoam", "Foam packaging (meat trays, takeout containers, cups) goes in recycling when empty.");
         REJECTED.put("organics", "Food and organics go in the green bin, not the blue bin.");
-        REJECTED.put("styrofoam", "Styrofoam doesn't belong in the blue bin.");
         REJECTED.put("textile", "Clothes and fabric don't belong in the blue bin.");
         REJECTED.put("electronics", "Electronics and batteries need a drop-off depot, not the blue bin.");
         REJECTED.put("garbage", "This is garbage, not recycling.");
@@ -42,7 +44,7 @@ public class Vision {
     static final String DIRTY = "It still has food or liquid in it, which contaminates the load. Empty it first.";
     // The camera can't see inside a closed box, so the weight flap decides empty vs full for containers.
     // Demo thresholds, to be calibrated with real items. Glass is heavy even when empty, so it gets its own.
-    static final Set<String> CONTAINERS = Set.of("cardboard", "carton", "rigid_plastic", "metal", "paper_cup");
+    static final Set<String> CONTAINERS = Set.of("cardboard", "carton", "rigid_plastic", "metal", "paper_cup", "plastic_film", "styrofoam");
     static final double EMPTY_MAX_KG = 0.15, EMPTY_GLASS_MAX_KG = 0.7;
 
     private final ObjectMapper json = new ObjectMapper();

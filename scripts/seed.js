@@ -4,9 +4,10 @@
 const ledger = require("../src/ledger");
 
 const CLEAN = [["METAL", "aluminum can"], ["RIGID_PLASTIC", "plastic bottle"], ["PAPER", "newspaper"],
-  ["CARDBOARD", "flattened box"], ["GLASS", "glass jar"], ["CARTON", "milk carton"]];
-const DIRTY = [["ORGANICS", "food scraps"], ["PLASTIC_FILM", "loose plastic bag"], ["CARDBOARD", "greasy pizza box"],
-  ["STYROFOAM", "foam takeout box"], ["GARBAGE", "coffee pod"]];
+  ["CARDBOARD", "flattened box"], ["GLASS", "glass jar"], ["CARTON", "milk carton"], ["PLASTIC_FILM", "empty chip bag"]];
+// Not accepted in Toronto's recycling (Circular Materials list, Oct 25, 2026): food, diapers, toys, batteries, clothes.
+const DIRTY = [["ORGANICS", "food scraps"], ["GARBAGE", "diaper"], ["GARBAGE", "plastic toy"],
+  ["ELECTRONICS", "dead batteries"], ["TEXTILE", "old t-shirt"]];
 const OTHER = [["GARBAGE", "GARBAGE", "garbage bag"], ["GARBAGE", "GARBAGE", "garbage bag"], ["ORGANICS", "ORGANICS", "food scraps in a bag"],
   ["GARBAGE", "GARBAGE", "garbage bag"], ["ORGANICS", "ORGANICS", "coffee grounds"]];
 

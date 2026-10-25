@@ -24,13 +24,13 @@ IEEE ClimateChain Global Hackathon 2026 · **Track: Sustainable Supply Chains** 
 
 ### The black bag question
 
-**We don't need to see inside the bag.** Circular Materials tells Toronto residents "Do not bag your recyclables" ([Circular Materials, Toronto](https://www.circularmaterials.ca/toronto)), so **a closed opaque bag in the recycling stream is itself the contamination.** The sorter diverts it to garbage and the floor gets a notice. Organics may go down in a bag, so the bag rule applies only to recycling.
+**We don't need to see inside the bag.** Circular Materials tells Toronto residents to "Place materials clean, dry and loose in your recycling" ([Circular Materials, Toronto](https://www.circularmaterials.ca/toronto)), so **a closed opaque bag in the recycling stream is itself the contamination.** The sorter diverts it to garbage and the floor gets a notice. Organics may go down in a bag, so the bag rule applies only to recycling.
 
 What we can't see is recyclables hidden in black bags sent down as garbage. We don't claim to measure that. We measure how clean the recycling stream is, which is the number producers pay for.
 
 ### The compost question
 
-Food the camera can see in the recycling stream is diverted to organics and recorded against the floor. Food inside a closed container makes it heavier than an empty one, so **the weight flap** catches a full yogurt cup the camera can't see into. What neither can catch, like grease inside a pizza box, **the facility's measurement catches**: the facility measures the real load, so hidden food makes its number higher than the building's. If the gap is more than 10 points, the pickup is **Flagged** and nothing can be claimed. The camera catches what it can see. The facility catches the rest. If they disagree, nothing gets claimed.
+Food the camera can see in the recycling stream is diverted to organics and recorded against the floor. Food inside a closed container makes it heavier than an empty one, so **the weight flap** catches a full yogurt cup the camera can't see into. What neither can catch, like a little food left smeared inside a yogurt tub, **the facility's measurement catches**: the facility measures the real load, so hidden food makes its number higher than the building's. If the gap is more than 10 points, the pickup is **Flagged** and nothing can be claimed. The camera catches what it can see. The facility catches the rest. If they disagree, nothing gets claimed.
 
 | Stream picked | What the sorter sees | Route |
 |---|---|---|
