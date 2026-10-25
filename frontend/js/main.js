@@ -9,7 +9,7 @@ import { Seal, SealSandbox } from "./seal.js";
 
 
 export const TABS = [["bin", "The chute"], ["building", "Building & pickups"], ["facility", "Facility"], ["seal", "The Seal"], ["verify", "Verify a receipt"]];
-export const SECTIONS = [["how", "How it works"], ["why", "Why blockchain"], ["hardware", "The kit"], ["privacy", "Privacy"]];
+export const SECTIONS = [["sealed", "The Seal"], ["how", "How it works"], ["why", "Why blockchain"], ["hardware", "The kit"], ["privacy", "Privacy"]];
 export const glide = (id) => { const el = document.getElementById(id); if (!el) return;
   if (window.__lenis) window.__lenis.scrollTo(el, { offset: -90, duration: 1.2 }); else window.scrollTo({ top: el.getBoundingClientRect().top + scrollY - 90, behavior: "smooth" }); };
 export function App() {
@@ -45,7 +45,7 @@ export function App() {
       <${AnimatePresence}>${!scrolled && tab !== "home" && html`<${motion.div} className="live" initial=${{ opacity: 0 }} animate=${{ opacity: 1 }} exit=${{ opacity: 0 }} style=${{ marginLeft: 6, whiteSpace: "nowrap" }}>
         <span className="dot"></span>${d ? (d.chainId === 84532 ? "Base Sepolia" : "Local chain " + d.chainId) : "No contract"}<//>`}<//>
     <//></div>
-    ${tab === "home" ? html`<${Landing} go=${(t) => { setTab(t); refresh(); }} state=${state}/>` : html`<main className="wrap"><${AnimatePresence} mode="wait"><${motion.section} key=${tab} id=${tab} initial=${{ opacity: 0, y: 8 }} animate=${{ opacity: 1, y: 0 }} exit=${{ opacity: 0, y: -8 }} transition=${{ duration: .2 }}>
+    ${tab === "home" ? html`<${Landing} go=${(t) => { setTab(t); refresh(); }} state=${state} refresh=${refresh}/>` : html`<main className="wrap"><${AnimatePresence} mode="wait"><${motion.section} key=${tab} id=${tab} initial=${{ opacity: 0, y: 8 }} animate=${{ opacity: 1, y: 0 }} exit=${{ opacity: 0, y: -8 }} transition=${{ duration: .2 }}>
       ${tab === "bin" ? html`<${BinTab} state=${state} refresh=${refresh} onDisposed=${setLast}/>`
         : tab === "building" ? html`<${BuildingTab} state=${state} refresh=${refresh}/>`
         : tab === "facility" ? html`<${FacilityTab} state=${state} refresh=${refresh}/>`

@@ -163,3 +163,17 @@
   footer { padding:34px 0 50px; color:var(--muted); font-size:14px; border-top:1px solid var(--line); display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px; }
   @media (max-width:900px) { .hero, .split { grid-template-columns: 1fr; } .steps, .priv { grid-template-columns: 1fr; } .h1 { font-size:50px; } }
   @media (max-width:760px) { .pickup { grid-template-columns: 1fr 1fr; } .item { grid-template-columns: 70px 1fr; } }
+  /* The Seal on the landing page: the live 3D pickup, full width, right under the hero. */
+  .showcase { border-top:0; padding-top:20px; }
+  .showcase-stage { position:relative; height:640px; border-radius:28px; overflow:hidden; background:#16181d; color:#eaf0ff; box-shadow:0 50px 100px -50px rgba(10,20,60,.6); }
+  .showcase-vignette { position:absolute; inset:0; pointer-events:none; z-index:2; background:linear-gradient(90deg, rgba(14,16,20,.82) 0%, rgba(14,16,20,.35) 38%, transparent 60%); }
+  .showcase-copy { position:absolute; left:44px; bottom:44px; z-index:3; max-width:430px; pointer-events:none; }
+  .showcase-copy .h2 { color:#fff; font-size:56px; }
+  .showcase-copy p { color:rgba(234,240,255,.78); font-size:17px; line-height:1.55; margin:0 0 22px; }
+  .showcase-copy .btn { pointer-events:auto; }
+  .showcase-eyebrow { font:600 12px "Inter Tight"; letter-spacing:.12em; text-transform:uppercase; color:#8ec3ff; margin-bottom:14px; }
+  .showcase-empty { position:absolute; inset:0; display:grid; place-items:center; padding-left:40%; color:rgba(234,240,255,.6); font-size:18px; }
+  .showcase-stamp { position:absolute; right:26px; top:24px; z-index:3; font:800 13px "Inter Tight"; letter-spacing:.1em; text-transform:uppercase; padding:8px 14px; border-radius:12px; border:2px solid rgba(234,240,255,.4); color:#eaf0ff; background:rgba(0,0,0,.3); }
+  .showcase-stamp.ok { border-color:#2ee6a1; color:#7ff5c7; } .showcase-stamp.bad { border-color:#ff4d5a; color:#ff9aa1; }
+  @media (max-width: 760px) { .showcase-stage { height:560px; } .showcase-copy { left:20px; right:20px; bottom:24px; } .showcase-copy .h2 { font-size:40px; }
+    .showcase-vignette { background:linear-gradient(0deg, rgba(14,16,20,.9) 0%, rgba(14,16,20,.4) 45%, transparent 70%); } .showcase-empty { padding:0 20px 200px; } }

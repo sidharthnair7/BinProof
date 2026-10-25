@@ -1,5 +1,6 @@
 // The landing page.
-import { html, spring, pill, Count, Rise, motion, animate } from "./lib.js";
+import { html, api, spring, pill, Count, Rise, useState, useEffect, useRef, motion, animate } from "./lib.js";
+import { Bale3D } from "./seal.js";
 
 // Light beams: faint curves across the hero with pulses of light travelling along them.
 export const BEAM_PATHS = Array.from({ length: 13 }, (_, i) => {
@@ -15,7 +16,36 @@ export const Beams = () => html`<svg className="beams" viewBox="0 0 1600 900" pr
     style=${{ "--d": `${7 + (i * 1.7) % 5}s`, "--dl": `${(i * 1.13) % 6}s` }}/>`)}
 </svg>`;
 
-export function Landing({ go, state }) {
+// The product's signature view, on the page itself: the latest pickup poured down the chute and pressed into
+// its bale, live from this building's chain. The 3D only loads once the section is near the screen.
+function SealShowcase({ state, go, refresh }) {
+  const box = useRef(null); const [near, setNear] = useState(false); const [busy, setBusy] = useState(false);
+  useEffect(() => { const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setNear(true); io.disconnect(); } }, { rootMargin: "300px" });
+    if (box.current) io.observe(box.current); return () => io.disconnect(); }, []);
+  const pickups = state.batches.slice().reverse();
+  const batch = pickups.find((b) => b.status === "Verified") || pickups[0];
+  const waiting = state.events.filter((e) => !e.batchId && !e.needsReview && (e.stream || "RECYCLING") === "RECYCLING" && !["diverted", "to_organics"].includes(e.route)).length;
+  const seal = async () => { setBusy(true); try { await api("/api/pickup", {}); await refresh(); } finally { setBusy(false); } };
+  const tone = batch?.status === "Verified" ? "ok" : batch?.status === "Flagged" ? "bad" : "";
+  return html`<section className="section showcase" id="sealed">
+    <${Rise}><div className="showcase-stage" ref=${box}>
+      ${batch && near ? html`<${Bale3D} key=${batch.batchId} batch=${batch} onPick=${() => go("seal")}/>`
+        : html`<div className="showcase-empty">${batch ? "Loading the sealed pickup…" : `${waiting} recycling drops are waiting for a pickup.`}</div>`}
+      <div className="showcase-vignette"></div>
+      ${batch && html`<div className=${"showcase-stamp " + tone}>Pickup #${batch.number} · ${batch.status === "Verified" ? "verified by the facility" : batch.status === "Flagged" ? "flagged by the facility" : "waiting for the facility"}</div>`}
+      <div className="showcase-copy">
+        <div className="showcase-eyebrow">The Seal · live from this building's chain</div>
+        <h2 className="h2">Every pickup,<br/>sealed.</h2>
+        <p>${batch ? `${batch.items} recycling drops pour down the chute and get pressed into one fingerprint: the root the building signs on chain. Drag to turn it; open it full screen to pull out any block and check its receipt.`
+          : "At pickup, every recycling drop pours down the chute and gets pressed into one fingerprint: the root the building signs on chain."}</p>
+        ${batch ? html`<button className="btn green lg" onClick=${() => go("seal")}>Open the Seal full screen →</button>`
+          : html`<button className="btn green lg" disabled=${busy || !waiting} onClick=${seal}>${busy ? "Signing on chain…" : "Seal a pickup now →"}</button>`}
+      </div>
+    </div><//>
+  </section>`;
+}
+
+export function Landing({ go, state, refresh }) {
   const d = state.deployment;
   const hot = [3, 7, 8, 12, 15, 19, 21, 24, 27, 30, 33];
   return html`<div className="herowrap"><${Beams}/><div className="herofade"></div><div className="aurora" aria-hidden="true">
@@ -40,6 +70,8 @@ export function Landing({ go, state }) {
           initial=${{ height: 0 }} animate=${{ height: `${30 + ((k * 37) % 60)}%` }} transition=${{ delay: .4 + k * .02, ...spring }}/>`)}</div>
         <div className="src">Audited. Circular Materials data in a City of Toronto committee file (2026). Apartments divert 26.3% of their waste; houses, 60.3%.</div><//>
     </section>
+
+    <${SealShowcase} state=${state} go=${go} refresh=${refresh}/>
 
     <section className="section" id="how">
       <${Rise}><h2 className="h2">Three signatures. One claim.</h2><p className="lede" style=${{ marginBottom: 0 }}>Every number is signed by the party who measured it, and checked against the other.</p><//>
