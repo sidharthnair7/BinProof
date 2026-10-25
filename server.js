@@ -12,7 +12,7 @@ const chain = require("./src/chain");
 const app = express();
 app.set("trust proxy", 1);
 app.use(express.json({ limit: "8mb" }));
-app.use(express.static(path.join(__dirname, "public")));
+app.use(express.static(path.join(__dirname, "frontend")));
 
 // The hosted demo is public and runs on free quotas: a simple per-IP limit on the calls that
 // spend them (vision quota, testnet gas).
@@ -100,6 +100,14 @@ app.post("/api/claim/:batchId", wrap(async (req, res) => {
 }));
 
 app.get("/api/receipt/:eventId", wrap(async (req, res) => res.json(ledger.receipt(req.params.eventId))));
+
+// The sealed tree of one pickup, for the page's visual: node hashes in heap order and where each item sits.
+app.get("/api/batch/:batchId/tree", wrap(async (req, res) => {
+  const b = ledger.batches().find((x) => x.batchId === req.params.batchId);
+  if (!b) throw new Error("unknown batch");
+  res.json({ number: b.number, root: b.root, fields: ledger.LEAF_FIELDS, tree: b.tree.tree,
+    leaves: b.tree.values.map((v) => ({ treeIndex: v.treeIndex, value: v.value })) });
+}));
 
 // Anyone with a receipt: rebuild the leaf from its values and ask the contract.
 app.post("/api/verify", wrap(async (req, res) => {

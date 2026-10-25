@@ -53,7 +53,7 @@ flowchart LR
 | Vision verdict (on-device Ollama, or Gemini for the hosted demo) | [`src/vision.js`](src/vision.js) |
 | Events, Merkle batching, receipts | [`src/ledger.js`](src/ledger.js) |
 | Chain calls and the two signers | [`src/chain.js`](src/chain.js) |
-| Web app and API | [`server.js`](server.js), [`public/index.html`](public/index.html) |
+| Web app and API | [`server.js`](server.js) (Node) or [`backend-java/`](backend-java) (Spring Boot), [`frontend/index.html`](frontend/index.html) |
 
 ## Security and data integrity
 
@@ -70,6 +70,26 @@ flowchart LR
 - **The chain makes the AI's claim tamper-evident, not correct.** That's why the model ID and confidence are recorded, low-confidence verdicts go to a person, and an independent measurement decides whether anything can be claimed.
 - **What's never recorded:** faces (the camera points into the bin), names, photos on any public system.
 - **Known limits:** people can dump without scanning; the camera sees the top of an item, not inside a bag; a building and a facility that collude can still lie together; a facility's figure is extrapolated from a sample; a unit hash is still personal data to the building that holds the salt.
+
+## Hardware: software first, the bin comes next
+
+We're two broke college students, so we built the software part of the product first, not the bin. BinProof runs on any camera that can see what goes into a shared bin. We tested it with a webcam and real items.
+
+For anyone who wants to build one, a reference parts list (not built; PiShop.ca prices, Oct 25, 2026, before tax):
+
+| Part | CAD |
+|---|---|
+| Raspberry Pi 5, 8 GB | 249.50 |
+| Camera Module 3 | 36.45 |
+| 27 W power supply | 16.95 |
+| Active cooler | 7.15 |
+| 32 GB microSD | 28.95 |
+| MG996R servo (lid) | 8.65 |
+| **Electronics total** | **347.65** |
+
+Not included: the lid or tray, mounting, wiring, a separate servo supply. About 3 W idle and 8.8 W at full load.
+
+Honest limit: Google's own Raspberry Pi 5 numbers for Gemma 4 E4B are about 20 seconds to the first token, for text alone. So on this board a small, fast classifier would decide whether the lid opens, and the vision model would write the record afterwards.
 
 ## Impact projection (assumptions stated)
 
@@ -91,6 +111,16 @@ npm start
 ```
 
 Open http://localhost:3030. `npm start` starts a local chain, deploys the contract, adds 24 seeded events from other units (labelled **seeded** everywhere), and serves the app.
+
+**Spring Boot backend (Java):** the same API and the same web page, in [`backend-java/`](backend-java). Start the local chain and contract first with `npm start` (it also seeds the demo), then in another terminal:
+
+```bash
+cd backend-java
+mvn -DskipTests package
+java -jar target/binproof-backend-1.0.0.jar
+```
+
+Open http://localhost:8080. It reads the same `data/` folder and `deployment.json`, builds the same OpenZeppelin-compatible Merkle trees (receipts from either backend verify on chain), and signs as the building and the facility with web3j.
 
 **Testnet (Base Sepolia):** `npm run wallets` makes two testnet-only wallets in `.env`. Fund the building wallet with Base Sepolia test ETH, then `npm run deploy:testnet`. Set `BINPROOF_VISION=gemini` and `GEMINI_API_KEY` to use Gemini, and `npm run serve`.
 

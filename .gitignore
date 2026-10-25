@@ -5,3 +5,4 @@ data/
 deployment.json
 .env
 .idea/
+backend-java/target/

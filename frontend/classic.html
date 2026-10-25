@@ -44,12 +44,43 @@
   textarea { width:100%; min-height:150px; font:12px ui-monospace, Consolas, monospace; padding:10px; border-radius:8px; border:1px solid var(--line); background:var(--bg); color:var(--ink); }
   a { color:var(--blue); }
   .tag { font-size:11px; color:var(--muted); border:1px dashed var(--line); border-radius:6px; padding:1px 6px; white-space:nowrap; }
+
+  /* Product look: a branded band, softer cards, bigger verdicts. Styling only. */
+  body { font-family: "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, sans-serif; }
+  .band { background: linear-gradient(135deg, #0f3d2a 0%, #1f7a4d 60%, #2f9e6a 100%); color:#fff; padding-bottom:18px; }
+  .band header { padding-top:22px; display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+  .logo { width:44px; height:44px; border-radius:12px; background:rgba(255,255,255,.14); display:grid; place-items:center; font-size:24px; }
+  .band h1 { font-size:30px; color:#fff; } .band h1 span { color:#9ff0c4; }
+  .band header p { color:rgba(255,255,255,.82); margin:2px 0 0; }
+  .chainbadge { margin-left:auto; display:flex; align-items:center; gap:8px; font-size:13px; font-weight:600; background:rgba(255,255,255,.12); padding:7px 12px; border-radius:999px; }
+  .chainbadge i { width:8px; height:8px; border-radius:50%; background:#7cf0b0; box-shadow:0 0 0 4px rgba(124,240,176,.25); }
+  .band nav button { background:rgba(255,255,255,.1); border-color:rgba(255,255,255,.22); color:#fff; padding:10px 16px; }
+  .band nav button.on { background:#fff; color:#0f3d2a; border-color:#fff; }
+  main { margin-top:-8px; }
+  .card { border:0; box-shadow:0 1px 2px rgba(16,40,28,.06), 0 8px 24px rgba(16,40,28,.07); border-radius:18px; padding:20px; }
+  .card h2 { font-size:17px; letter-spacing:-.01em; }
+  .btn { padding:12px 18px; border-radius:12px; box-shadow:0 2px 0 rgba(0,0,0,.08); }
+  .verdict { padding:18px 18px 16px 64px; position:relative; border-radius:16px; }
+  .verdict::before { position:absolute; left:16px; top:16px; width:34px; height:34px; border-radius:50%; display:grid; place-items:center; font-weight:900; font-size:18px; color:#fff; }
+  .verdict.ok::before { content:"✓"; background:var(--green); }
+  .verdict.bad::before { content:"✕"; background:var(--red); }
+  .verdict.warn::before { content:"?"; background:var(--amber); }
+  .verdict b { font-size:22px; letter-spacing:-.01em; }
+  .stat { font-size:44px; color:var(--red); }
+  .pill { padding:3px 10px; font-size:12.5px; }
+  th { background:transparent; }
+  tbody tr:hover { background:rgba(31,122,77,.04); }
 </style>
 </head>
 <body>
+<div class="band">
 <header>
-  <h1>Bin<span>Proof</span></h1>
-  <p>Recycling contamination, recorded at the bin, checked by the facility, claimable once.</p>
+  <div class="logo" aria-hidden="true">♻</div>
+  <div>
+    <h1>Bin<span>Proof</span></h1>
+    <p>Recycling contamination, recorded at the bin, checked by the facility, claimable once.</p>
+  </div>
+  <div class="chainbadge"><i></i><span id="chainLabel">Contract live</span></div>
 </header>
 <nav>
   <button data-tab="bin" class="on">1 · The bin</button>
@@ -57,6 +88,7 @@
   <button data-tab="facility">3 · Facility</button>
   <button data-tab="verify">4 · Verify a receipt</button>
 </nav>
+</div>
 <main>
   <section id="bin" class="on">
     <div class="grid">
@@ -172,6 +204,7 @@ async function refresh() {
     <td>${b.status === "Verified" ? `<button class="btn alt small" onclick="claim('${b.batchId}')">${b.claimed ? "Claim again" : "Issue claim"}</button>` : ""}
         <div class="mono" id="claim-${b.batchId}">${b.tx.claim ? "claimed " + txLink(b.tx.claim) : ""}</div></td></tr>`).join("") || '<tr><td colspan="6" class="muted">No pickups yet.</td></tr>';
   const d = state.deployment;
+  $("chainLabel").textContent = d ? `Contract live · ${d.chainId === 84532 ? "Base Sepolia" : "local chain " + d.chainId}` : "Contract not deployed";
   $("contract").innerHTML = d ? `Contract ${d.address} on chain ${d.chainId} · building signer ${short(d.building)} · facility signer ${short(d.facility)} · tolerance ${d.toleranceBps / 100} points` : "Contract not deployed.";
   $("batchSel").innerHTML = state.batches.filter((b) => b.status === "Committed").map((b) => `<option value="${b.batchId}">Pickup #${b.number}: bin says ${b.binPct.toFixed(1)}%</option>`).join("") || "<option value=''>No pickups waiting for a measurement</option>";
 }
@@ -242,7 +275,9 @@ $("report").onclick = async () => {
 };
 
 $("lastReceipt").onclick = async () => {
-  const mine = lastEventId || state.events.find((e) => e.batchId)?.eventId;
+  // Your latest item if it has been picked up; otherwise the newest item that has.
+  const last = state.events.find((e) => e.eventId === lastEventId);
+  const mine = last?.batchId ? last.eventId : state.events.find((e) => e.batchId)?.eventId;
   if (!mine) { $("verifyMsg").textContent = "No item yet."; return; }
   const r = await api(`/api/receipt/${mine}`);
   $("receipt").value = r.pending ? "This item is waiting for pickup. Its receipt exists once the pickup is committed." : JSON.stringify({ batchId: r.batchId, fields: r.leafFields, values: r.values, proof: r.proof }, null, 2);
