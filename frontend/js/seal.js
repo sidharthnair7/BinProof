@@ -253,7 +253,26 @@ export function Bale3D({ batch, onPick, pickProp, brokenProp, onSealed }) {
       const ix = (f) => tree.fields.indexOf(f);
       const leaves = tree.leaves.slice().sort((a, b) => a.treeIndex - b.treeIndex);
       const n = leaves.length, NX = 4, NZ = 3, NY = Math.ceil(n / (NX * NZ)), S = 1, GAP = .04;
-      const kind = (v) => v[ix("contaminated")] ? 0xd9534b : v[ix("seeded")] ? 0x737d93 : 0x3cbf86;
+      // Each drop becomes the product the camera recorded (by material), sized to fit its slot in the bale.
+      const V2 = (pts) => pts.map(([x, y]) => new THREE.Vector2(x, y));
+      const PRODUCT = {
+        metal: { geo: () => new THREE.CylinderGeometry(.32, .32, .88, 28), color: 0xc4cbd3, mat: { metalness: .85, roughness: .28 } },
+        rigid_plastic: { geo: () => new THREE.LatheGeometry(V2([[0, -.45], [.28, -.45], [.3, -.4], [.3, .14], [.22, .27], [.12, .35], [.11, .44], [.13, .44], [.13, .5], [0, .5]]), 28), color: 0x8fd0ff, mat: { roughness: .12, transparent: true, opacity: .88 } },
+        glass: { geo: () => new THREE.LatheGeometry(V2([[0, -.4], [.36, -.4], [.38, -.36], [.38, .27], [.32, .33], [.32, .42], [0, .42]]), 28), color: 0x8fdcb8, mat: { roughness: .05, metalness: .1, transparent: true, opacity: .78 } },
+        carton: { geo: () => new RoundedBoxGeometry(.56, .9, .56, 3, .05), color: 0xeef3fb, mat: { roughness: .7 } },
+        cardboard: { geo: () => new RoundedBoxGeometry(.95, .32, .8, 3, .04), color: 0xc79a66, mat: { roughness: .85 } },
+        paper: { geo: () => new RoundedBoxGeometry(.9, .18, .68, 2, .02), color: 0xe6e1d4, mat: { roughness: .9 } },
+        paper_cup: { geo: () => new THREE.CylinderGeometry(.34, .25, .85, 28), color: 0xf4efe4, mat: { roughness: .8 } },
+        plastic_film: { geo: () => new THREE.SphereGeometry(.5, 28, 18).scale(.82, 1, .32), color: 0x4f7cff, mat: { metalness: .55, roughness: .3 } },
+        styrofoam: { geo: () => new RoundedBoxGeometry(.86, .36, .74, 4, .12), color: 0xf8f8f4, mat: { roughness: .95 } },
+        garbage: { geo: () => new RoundedBoxGeometry(.8, .4, .62, 4, .18), color: 0xe9e9ef, mat: { roughness: .9 } },
+        electronics: { geo: () => new THREE.CylinderGeometry(.2, .2, .8, 20), color: 0x2b2f38, mat: { metalness: .4, roughness: .4 } },
+        textile: { geo: () => new THREE.IcosahedronGeometry(.48, 1).scale(1, .5, .9), color: 0x6c7fb3, mat: { roughness: .95, flatShading: true } },
+        organics: { geo: () => new THREE.SphereGeometry(.42, 20, 14), color: 0x8b5a2b, mat: { roughness: .8 } },
+        other: { geo: () => new RoundedBoxGeometry(S, S, S, 4, .12), color: 0x9aa3b5, mat: { roughness: .62 } },
+      };
+      const typeOf = (v) => PRODUCT[v[ix("category")]] ? v[ix("category")] : "other";
+      const kind = (v) => v[ix("contaminated")] ? 0xd9534b : PRODUCT[typeOf(v)].color;
       const slot = (k) => { const x = k % NX, z = Math.floor(k / NX) % NZ, y = Math.floor(k / (NX * NZ));
         return new THREE.Vector3((x - (NX - 1) / 2) * (S + GAP), .5 + y * (S + GAP), (z - (NZ - 1) / 2) * (S + GAP)); };
 
@@ -280,13 +299,17 @@ export function Bale3D({ batch, onPick, pickProp, brokenProp, onSealed }) {
         const b = new CANNON.Body({ mass: 0, shape: new CANNON.Box(new CANNON.Vec3(x, y, z)) }); b.position.set(px, py, pz); world.addBody(b); });
       const pusher = new CANNON.Body({ mass: 0, type: CANNON.Body.KINEMATIC, shape: new CANNON.Sphere(.7) }); pusher.position.set(0, -10, 0); world.addBody(pusher);
 
-      const geo = new RoundedBoxGeometry(S, S, S, 4, .12);
-      const mat = new THREE.MeshStandardMaterial({ roughness: .62, metalness: 0, envMapIntensity: .6 });
-      const mesh = new THREE.InstancedMesh(geo, mat, n); mesh.castShadow = true; mesh.receiveShadow = true; scene.add(mesh);
+      // One instanced mesh per product type; where[k] says which mesh and instance draws drop k.
+      const groups = {}; leaves.forEach((l, k) => (groups[typeOf(l.value)] ||= []).push(k));
+      const where = [], meshes = Object.entries(groups).map(([type, ks]) => {
+        const m = new THREE.InstancedMesh(PRODUCT[type].geo(), new THREE.MeshStandardMaterial({ color: 0xffffff, envMapIntensity: .7, ...PRODUCT[type].mat }), ks.length);
+        // Instances travel far from where they spawn, so the mesh's cached bounds would cull them: never cull.
+        m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false; scene.add(m); ks.forEach((k, i) => { where[k] = [m, i]; }); return m; });
+      const setAt = (k, matrix, color) => { const [m, i] = where[k]; m.setMatrixAt(i, matrix); if (color !== undefined) m.setColorAt(i, new THREE.Color(color)); };
       const bodies = leaves.map((l, k) => { const b = new CANNON.Body({ mass: 1, shape: new CANNON.Box(new CANNON.Vec3(.5, .5, .5)), linearDamping: .05, angularDamping: .1 });
         b.position.set(Math.sin(k * 1.7) * .12, 5.2 + k * 1.08, Math.cos(k * 1.3) * .12); b.quaternion.setFromEuler(k * .7, k * 1.3, k * .4);
-        b.sleepSpeedLimit = .2; world.addBody(b); mesh.setColorAt(k, new THREE.Color(kind(l.value))); return b; });
-      mesh.instanceColor.needsUpdate = true;
+        b.sleepSpeedLimit = .2; world.addBody(b); const [m, i] = where[k]; m.setColorAt(i, new THREE.Color(kind(l.value))); return b; });
+      meshes.forEach((m) => { m.instanceColor.needsUpdate = true; });
 
       // Press plate, straps and tag (hidden until the press).
       const block = new THREE.Vector3(NX * (S + GAP), NY * (S + GAP), NZ * (S + GAP));
@@ -330,7 +353,7 @@ export function Bale3D({ batch, onPick, pickProp, brokenProp, onSealed }) {
         const t = (now - start) / 1000;
         if (phase === "drop") {
           world.fixedStep(1 / 60);
-          bodies.forEach((b, k) => { dummy.position.copy(b.position); dummy.quaternion.copy(b.quaternion); dummy.scale.setScalar(1); dummy.updateMatrix(); mesh.setMatrixAt(k, dummy.matrix); });
+          bodies.forEach((b, k) => { dummy.position.copy(b.position); dummy.quaternion.copy(b.quaternion); dummy.scale.setScalar(1); dummy.updateMatrix(); setAt(k, dummy.matrix); });
           if (t > DROP) { phase = "press"; pressAt = t; pusher.position.set(0, -10, 0);
             bodies.forEach((b, k) => { from[k] = new THREE.Vector3().copy(b.position); fromQ[k] = new THREE.Quaternion().copy(b.quaternion); });
             binGroup.children.forEach((c) => { c.userData.o = c.material.opacity; }); camFrom.copy(camera.position); tgtFrom.copy(controls.target); }
@@ -341,15 +364,14 @@ export function Bale3D({ batch, onPick, pickProp, brokenProp, onSealed }) {
           bodies.forEach((b, k) => { const pairDelay = (k >> 1) * .045; const e = ease((p - pairDelay) / .9);
             dummy.position.lerpVectors(from[k], slot(k), e); dummy.quaternion.slerpQuaternions(fromQ[k], new THREE.Quaternion(), e);
             if (picked === k) { const out = Math.min(1, (p - 4.2) > 0 ? 1 : 0) ; dummy.position.z += 1.05; }
-            dummy.scale.setScalar(1); dummy.updateMatrix(); mesh.setMatrixAt(k, dummy.matrix);
-            const c = picked === k && brokenNow ? 0x555b66 : kind(leaves[k].value); mesh.setColorAt(k, new THREE.Color(c)); });
-          mesh.instanceColor.needsUpdate = true;
+            dummy.scale.setScalar(1); dummy.updateMatrix(); setAt(k, dummy.matrix, picked === k && brokenNow ? 0x555b66 : kind(leaves[k].value)); });
+          meshes.forEach((m) => { m.instanceColor.needsUpdate = true; });
           const settle = .9 + (n >> 1) * .045;
           // The press: the plate comes down, the block squashes, the plate lifts away.
           const pd = p - settle; plate.visible = pd > -.6 && pd < 2.2;
           plate.position.y = pd < 0 ? 9 + pd * (9 - block.y - .2) / .6 : pd < .5 ? block.y + .2 : block.y + .2 + ease((pd - .5) / 1.2) * 9;
           const squash = pd > 0 && pd < .5 ? .93 + Math.abs(Math.sin(pd / .5 * Math.PI)) * -.0 : 1;
-          mesh.scale.y = pd > 0 && pd < .35 ? .93 : 1; mesh.position.y = 0;
+          meshes.forEach((m) => { m.scale.y = pd > 0 && pd < .35 ? .93 : 1; });
           binGroup.children.forEach((c) => { c.material.opacity = (c.userData.o ?? c.material.opacity) * (1 - ease((pd - .3) / 1)); });
           const tg2 = ease((pd - 1.1) / .6); tag.visible = tg2 > 0; tag.scale.setScalar(Math.max(.001, tg2));
           const sb = ease((pd - 1.6) / .7), sf = ease((pd - 2.4) / .7);
@@ -358,7 +380,7 @@ export function Bale3D({ batch, onPick, pickProp, brokenProp, onSealed }) {
           strapF.visible = sf > 0; strapF.scale.set(1, 1, Math.max(.001, sf));
           if (!sealedSent && pd > 3.2) { sealedSent = true; sealedCb.current?.(); }
         }
-        mesh.instanceMatrix.needsUpdate = true; controls.update(); renderer.render(scene, camera); raf = requestAnimationFrame(tick);
+        meshes.forEach((m) => { m.instanceMatrix.needsUpdate = true; }); controls.update(); renderer.render(scene, camera); raf = requestAnimationFrame(tick);
       };
       raf = requestAnimationFrame(tick);
       ro = new ResizeObserver(() => { renderer.setSize(W(), H()); camera.aspect = W() / H(); camera.updateProjectionMatrix(); }); ro.observe(el);
